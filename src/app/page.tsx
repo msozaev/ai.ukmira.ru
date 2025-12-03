@@ -1,0 +1,725 @@
+"use client";
+
+import { useMemo, useRef, useState } from "react";
+import { v4 as uuid } from "uuid";
+import type { ChatMessage, Source, StudioMode } from "@/lib/gemini";
+
+type StudioCard = {
+  key: StudioMode;
+  title: string;
+  desc: string;
+  gradient: string;
+};
+
+type ParsedQuiz = { quiz?: QuizQuestion[]; message: string };
+
+function extractQuiz(raw: string): ParsedQuiz {
+  const codeBlockMatch = raw.match(/```json([\s\S]*?)```/i);
+  const jsonCandidate = codeBlockMatch ? codeBlockMatch[1] : (() => {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start >= 0 && end > start) return raw.slice(start, end + 1);
+    return raw;
+  })();
+
+const parseQuestionsArray = (parsed: unknown) => {
+  const obj = parsed as { questions?: unknown };
+  if (Array.isArray(parsed?.questions)) {
+      const quiz = obj.questions
+        .filter(
+          (q: { question: unknown; options: unknown[] }) =>
+            typeof q?.question === "string" &&
+            Array.isArray(q?.options) &&
+            q.options.length === 4 &&
+            q.options.every((o) => typeof o === "string")
+        )
+        .map((q: { question: string; options: string[]; answer?: number }) => ({
+          question: q.question,
+          options: q.options,
+          answer: Number(q.answer ?? 0),
+        }));
+      if (quiz.length) return quiz;
+    }
+    return undefined;
+  };
+
+  const cleanJson = (text: string) =>
+    text
+      .replace(/```json|```/gi, "")
+      .replace(/\r?\n/g, " ")
+      .replace(/,\s*([}\]])/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const tryParsers = [jsonCandidate, cleanJson(jsonCandidate)];
+
+  const questionsMatch = raw.match(/"questions"\s*:\s*(\[[\s\S]*?\])/);
+  if (questionsMatch) {
+    tryParsers.push(`{"questions":${questionsMatch[1]}}`);
+    tryParsers.push(cleanJson(`{"questions":${questionsMatch[1]}}`));
+  }
+
+  for (const candidate of tryParsers) {
+    try {
+      const parsed = JSON.parse(candidate);
+      const quiz = parseQuestionsArray(parsed);
+      if (quiz) return { quiz, message: "Тест готов. Нажмите, чтобы пройти." };
+    } catch {}
+  }
+
+  // Fallback: parse markdown-like MCQ
+  const cleanedLines = raw
+    .replace(/\*\*/g, "")
+    .replace(/^#+/gm, "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const quiz: QuizQuestion[] = [];
+  let current: QuizQuestion | null = null;
+
+  const optionRegex = /^[-*]?\s*[A-DА-Га-г][).\]]\s*(.+)$/i;
+  const questionRegex = /^\d+[).]\s+(.+)/;
+
+  for (const line of cleanedLines) {
+    const qMatch = line.match(questionRegex);
+    if (qMatch) {
+      if (current && current.options.length === 4) quiz.push(current);
+      current = { question: qMatch[1].trim(), options: [], answer: 0 };
+      continue;
+    }
+    if (current) {
+      const oMatch = line.match(optionRegex);
+      if (oMatch && current.options.length < 4) {
+        const text = oMatch[1].trim();
+        current.options.push(text);
+        const isCorrect = /верн|правил|correct|✔|✅/i.test(text);
+        if (isCorrect) current.answer = current.options.length - 1;
+      }
+    }
+  }
+  if (current && current.options.length === 4) quiz.push(current);
+
+  if (quiz.length) return { quiz, message: "Тест готов. Нажмите, чтобы пройти." };
+
+  return { message: raw };
+}
+
+type QuizQuestion = {
+  question: string;
+  options: string[];
+  answer: number;
+  userAnswer?: number;
+};
+
+type StudioResult = {
+  id: string;
+  mode: StudioMode;
+  title: string;
+  status: "loading" | "ready" | "error";
+  content: string;
+  quiz?: QuizQuestion[];
+};
+
+const studioCards: StudioCard[] = [
+  { key: "audio", title: "Аудиопересказ", desc: "", gradient: "from-sky-400/50 to-cyan-500/30" },
+  { key: "video", title: "Видеопересказ", desc: "", gradient: "from-emerald-400/50 to-teal-500/30" },
+  { key: "mindmap", title: "Ментальная карта", desc: "", gradient: "from-violet-400/50 to-indigo-500/30" },
+  { key: "report", title: "Отчеты", desc: "", gradient: "from-amber-400/50 to-orange-500/30" },
+  { key: "flashcards", title: "Карточки", desc: "", gradient: "from-pink-400/50 to-rose-500/30" },
+  { key: "quiz", title: "Тест", desc: "", gradient: "from-blue-400/50 to-indigo-400/30" },
+  { key: "infographic", title: "Инфографика", desc: "", gradient: "from-lime-400/50 to-emerald-400/30" },
+  { key: "slides", title: "Презентация", desc: "", gradient: "from-fuchsia-400/50 to-purple-500/30" },
+];
+
+type Tab = "file" | "link" | "youtube" | "text" | null;
+
+const cx = (...classes: (string | boolean | undefined | null)[]) =>
+  classes.filter(Boolean).join(" ");
+
+export default function Home() {
+  const [sources, setSources] = useState<Source[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>(null);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [ytUrl, setYtUrl] = useState("");
+  const [textSource, setTextSource] = useState("");
+  const [textTitle, setTextTitle] = useState("Свободный текст");
+
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: "assistant",
+      content:
+        "Привет! Я Miraverse — ваш личный ИИ репетитор. Добавь источники слева и задай вопрос, или запусти любой инструмент студии справа.",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [isChatLoading, setChatLoading] = useState(false);
+  const [studioLoading, setStudioLoading] = useState<StudioMode | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTitle, setModalTitle] = useState<string>("");
+  const [modalContent, setModalContent] = useState<string>("");
+  const [modalQuiz, setModalQuiz] = useState<QuizQuestion[] | null>(null);
+  const [studioResults, setStudioResults] = useState<StudioResult[]>([]);
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const availableSources = useMemo(
+    () => sources.filter((s) => selectedSources.length === 0 || selectedSources.includes(s.id)),
+    [sources, selectedSources]
+  );
+
+  const toggleSource = (id: string) => {
+    setSelectedSources((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+    );
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    const form = new FormData();
+    Array.from(files).forEach((file) => form.append("files", file));
+    const res = await fetch("/api/upload", { method: "POST", body: form });
+    const data = await res.json();
+    if (data?.sources) {
+      setSources((prev) => [...prev, ...data.sources]);
+      setSelectedSources((prev) => [...prev, ...data.sources.map((s: Source) => s.id)]);
+    }
+  };
+
+  const handleLinkFetch = async () => {
+    if (!linkUrl) return;
+    const res = await fetch("/api/link", {
+      method: "POST",
+      body: JSON.stringify({ url: linkUrl }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    if (data?.source) {
+      setSources((prev) => [...prev, data.source]);
+      setSelectedSources((prev) => [...prev, data.source.id]);
+      setLinkUrl("");
+      setActiveTab(null);
+    }
+  };
+
+  const handleYoutubeFetch = async () => {
+    if (!ytUrl) return;
+    const res = await fetch("/api/youtube", {
+      method: "POST",
+      body: JSON.stringify({ url: ytUrl }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    if (data?.source) {
+      setSources((prev) => [...prev, data.source]);
+      setSelectedSources((prev) => [...prev, data.source.id]);
+      setYtUrl("");
+      setActiveTab(null);
+    }
+  };
+
+  const handleTextAdd = () => {
+    if (!textSource.trim()) return;
+    const source: Source = {
+      id: uuid(),
+      title: textTitle || "Текст",
+      type: "text",
+      content: textSource,
+    };
+    setSources((prev) => [...prev, source]);
+    setSelectedSources((prev) => [...prev, source.id]);
+    setTextSource("");
+    setTextTitle("Свободный текст");
+    setActiveTab(null);
+  };
+
+  const sendMessage = async (value?: string) => {
+    const prompt = (value ?? input).trim();
+    if (!prompt) return;
+    const userMsg: ChatMessage = { role: "user", content: prompt };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setChatLoading(true);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "chat",
+          prompt,
+          sources: availableSources,
+          history: [...messages, userMsg],
+        }),
+      });
+      const data = await res.json();
+      const reply: ChatMessage = { role: "assistant", content: data.text || data.error || "Не удалось сгенерировать ответ" };
+      setMessages((prev) => [...prev, reply]);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "неизвестно";
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `Ошибка: ${message}` },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const runStudio = async (mode: StudioMode) => {
+    setStudioLoading(mode);
+    const id = uuid();
+    const newItem: StudioResult = {
+      id,
+      mode,
+      title: studioCards.find((c) => c.key === mode)?.title || mode,
+      status: "loading",
+      content: "",
+    };
+    setStudioResults((prev) => [newItem, ...prev]);
+    const systemPrompts: Record<StudioMode, string> = {
+      chat: "",
+      audio: "Создай аудиопересказ 3–5 минут по источникам.",
+      video: "Сделай видеосценарий с подсказками визуала.",
+      mindmap: "Построй ментальную карту: 2–3 уровня вложенности.",
+      report: "Сформируй аналитический отчёт с выводами и рекомендациями.",
+      flashcards: "Сделай 10 карточек Вопрос/Ответ.",
+      quiz:
+        "Верни ТОЛЬКО JSON без пояснений и текста. Формат: {\"questions\":[{\"question\":\"...\",\"options\":[\"вариант1\",\"вариант2\",\"вариант3\",\"вариант4\"],\"answer\":0}]}. 6-8 вопросов, options ровно 4, answer — индекс правильного (0-3). Без маркдауна, без троеточий, без текста вокруг.",
+      infographic: "Опиши структуру инфографики и данные для неё.",
+      slides: "Составь план презентации на 10 слайдов с заметками спикера.",
+    };
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode,
+          prompt: systemPrompts[mode],
+          sources: availableSources,
+          history: messages,
+        }),
+      });
+      const data = await res.json();
+      let content = data.text ?? data.error ?? "Нет ответа";
+      let quizPayload: QuizQuestion[] | undefined = undefined;
+      if (mode === "quiz") {
+        const parsed = extractQuiz(content);
+        content = parsed.message;
+        quizPayload = parsed.quiz;
+        if (quizPayload && quizPayload.length === 0) quizPayload = undefined;
+        if (quizPayload) content = "Тест готов. Нажмите, чтобы пройти.";
+        if (!quizPayload && parsed.message === content && content === "Нет ответа") {
+          content = "Не удалось разобрать тест. Попробуйте снова.";
+        }
+      }
+      setStudioResults((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, status: "ready", content, quiz: quizPayload }
+            : item
+        )
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "неизвестно";
+      setStudioResults((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, status: "error", content: `Ошибка: ${message}` } : item
+        )
+      );
+    } finally {
+      setStudioLoading(null);
+    }
+  };
+
+  const suggested = [
+    "Сделай краткий конспект ключевых идей",
+    "Предложи 5 вопросов для самопроверки",
+    "Какие практические шаги можно сделать за неделю?",
+    "Объясни это простыми словами",
+  ];
+
+  return (
+    <div className="min-h-screen px-3 py-6 sm:px-4 lg:px-6 xl:px-10">
+      <div className="mx-auto flex w-full flex-col gap-5 lg:gap-6">
+        <header className="flex items-center justify-between rounded-2xl glass px-4 py-3 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-cyan-400 to-indigo-500 shadow-lg" />
+            <div>
+              <p className="text-sm text-slate-300">Miraverse </p>
+              <h1 className="text-lg font-semibold text-white">ИИ Репетитор</h1>
+            </div>
+          </div>
+          <div className="hidden items-center gap-3 text-sm text-slate-300 md:flex">
+
+          </div>
+        </header>
+
+        <div className="layout-grid">
+          {/* Sidebar */}
+          <aside className="glass-strong dot-grid rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Источники</p>
+                <h2 className="text-lg font-semibold text-white">Рабочая коллекция</h2>
+              </div>
+              <button
+                onClick={() => setSelectedSources(sources.map((s) => s.id))}
+                className="text-xs text-cyan-200 hover:text-cyan-100"
+              >
+                Выбрать все
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white hover:border-white/20"
+                >
+                  📂 Файл
+                </button>
+                <button
+                  onClick={() => setActiveTab(activeTab === "link" ? null : "link")}
+                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "link" && "border-cyan-300/50 text-cyan-100")}
+                >
+                  🔗 Ссылка
+                </button>
+                <button
+                  onClick={() => setActiveTab(activeTab === "youtube" ? null : "youtube")}
+                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "youtube" && "border-cyan-300/50 text-cyan-100")}
+                >
+                  ▶️ YouTube
+                </button>
+                <button
+                  onClick={() => setActiveTab(activeTab === "text" ? null : "text")}
+                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "text" && "border-cyan-300/50 text-cyan-100")}
+                >
+                  📝 Текст
+                </button>
+              </div>
+
+              {/* Dynamic forms */}
+              {activeTab === "link" && (
+                <div className="glass rounded-xl p-3 space-y-2">
+                  <input
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
+                  />
+                  <button onClick={handleLinkFetch} className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-cyan-400">Добавить ссылку</button>
+                </div>
+              )}
+              {activeTab === "youtube" && (
+                <div className="glass rounded-xl p-3 space-y-2">
+                  <input
+                    value={ytUrl}
+                    onChange={(e) => setYtUrl(e.target.value)}
+                    placeholder="https://youtube.com/..."
+                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
+                  />
+                  <button onClick={handleYoutubeFetch} className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-cyan-400">Импортировать</button>
+                </div>
+              )}
+              {activeTab === "text" && (
+                <div className="glass rounded-xl p-3 space-y-2">
+                  <input
+                    value={textTitle}
+                    onChange={(e) => setTextTitle(e.target.value)}
+                    placeholder="Название"
+                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
+                  />
+                  <textarea
+                    value={textSource}
+                    onChange={(e) => setTextSource(e.target.value)}
+                    rows={4}
+                    placeholder="Вставьте текст или заметки"
+                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
+                  />
+                  <button onClick={handleTextAdd} className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-cyan-400">Добавить текст</button>
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFileUpload(e.target.files)}
+              />
+
+              <div className="mt-3 space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+                {sources.length === 0 && (
+                  <p className="text-sm text-slate-400">Добавьте PDF, ссылки, видео или текст, чтобы генерировать материалы.</p>
+                )}
+                {sources.map((src) => (
+                  <button
+                    key={src.id}
+                    onClick={() => toggleSource(src.id)}
+                    className={cx(
+                      "w-full rounded-xl px-3 py-2 text-left glass border border-transparent transition",
+                      selectedSources.includes(src.id) && "border-cyan-300/50 shadow-[0_0_0_1px_rgba(103,232,249,0.2)]"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-lg">{src.type === "file" ? "📄" : src.type === "link" ? "🌐" : src.type === "youtube" ? "🎬" : "📝"}</div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-white line-clamp-1">{src.title}</p>
+                        <p className="text-xs text-slate-400 line-clamp-2">{src.content.slice(0, 120)}...</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          {/* Chat */}
+          <section className="glass-strong rounded-2xl p-4 flex flex-col min-h-[75vh]">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Чат</p>
+                <h2 className="text-xl font-semibold text-white">Диалог с тьютором</h2>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" /> Miraverse AI подключен
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1">
+              {messages.map((m, idx) => (
+                <div key={idx} className={cx("rounded-2xl px-3 py-2 max-w-3xl", m.role === "assistant" ? "bg-white/5" : "bg-cyan-500/20 border border-cyan-300/30 ml-auto")}> 
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-1">{m.role === "assistant" ? "Miraverse" : "Вы"}</p>
+                  <div className="text-sm leading-relaxed whitespace-pre-wrap text-slate-100">{m.content}</div>
+                </div>
+              ))}
+              {isChatLoading && <div className="text-sm text-slate-400">Генерация ответа...</div>}
+            </div>
+
+            <div className="glass mt-2 rounded-2xl border border-white/10 p-3">
+              <div className="flex flex-wrap gap-2 pb-2">
+                {suggested.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => sendMessage(s)}
+                    className="rounded-full bg-white/5 px-3 py-1 text-xs text-slate-200 border border-white/10 hover:border-cyan-300/50"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                  placeholder="Спросите тьютора..."
+                  className="flex-1 rounded-xl bg-white/5 px-3 py-3 text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
+                />
+                <button
+                  onClick={() => sendMessage()}
+                  disabled={isChatLoading}
+                  className="rounded-xl bg-gradient-to-r from-cyan-400 to-indigo-500 px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg hover:shadow-cyan-400/30 disabled:opacity-60"
+                >
+                  Отправить
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Studio */}
+          <aside className="glass-strong rounded-2xl p-4 space-y-3 min-h-[75vh]">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Студия</p>
+                <h2 className="text-xl font-semibold text-white">Автогенерация</h2>
+              </div>
+              <span className="text-xs text-slate-400">Выбрано: {availableSources.length}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {studioCards.map((card) => (
+                <button
+                  key={card.key}
+                  onClick={() => runStudio(card.key)}
+                  className="relative overflow-hidden rounded-lg border border-white/10 px-3 py-2 text-left glass"
+                >
+                  <div className={cx("absolute inset-0 blur-2xl opacity-70", `bg-gradient-to-br ${card.gradient}`)} />
+                  <div className="relative">
+                    <p className="text-sm font-semibold text-white">{card.title}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="glass mt-2 rounded-2xl border border-white/10 p-3 min-h-[140px] space-y-2">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Результаты</p>
+              {studioResults.length === 0 && (
+                <p className="text-sm text-slate-400">Нажмите на карточку, чтобы сгенерировать результат.</p>
+              )}
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                {studioResults.map((item) => (
+                  <button
+                    key={item.id}
+                    disabled={item.status === "loading"}
+                    onClick={() => {
+                      if (item.status !== "ready" && item.status !== "error") return;
+                      setModalTitle(item.title);
+                      setModalContent(item.content);
+                      setModalQuiz(item.quiz ? item.quiz.map((q) => ({ ...q })) : null);
+                      setModalOpen(true);
+                    }}
+                    className={cx(
+                      "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left transition",
+                      item.status === "loading" && "opacity-70",
+                      "hover:border-cyan-300/50"
+                    )}
+                  >
+                    <div className="flex items-center justify-between text-sm text-white">
+                      <span>{item.title}</span>
+                      <span className="text-xs text-slate-400">
+                        {item.status === "loading" ? "Генерация…" : item.status === "error" ? "Ошибка" : "Готово"}
+                      </span>
+                    </div>
+                    {item.status === "ready" && (
+                      <p className="mt-1 line-clamp-2 text-xs text-slate-300">
+                        {item.quiz ? `${item.quiz.length} вопросов` : item.content}
+                      </p>
+                    )}
+                    {item.status === "error" && (
+                      <p className="mt-1 text-xs text-rose-300">{item.content}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-3xl rounded-2xl bg-slate-900/90 border border-white/10 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-300">{modalTitle || "Результат"}</p>
+              <button
+                onClick={() => setModalOpen(false)}
+                className="text-slate-300 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto px-4 py-4 space-y-3 text-[15px] leading-relaxed">
+              {studioLoading ? (
+                <p className="text-base text-slate-200">Генерация...</p>
+              ) : modalQuiz ? (
+                <QuizView quiz={modalQuiz} setQuiz={setModalQuiz} />
+              ) : (
+                <div className="whitespace-pre-wrap text-base leading-relaxed text-slate-100">{modalContent}</div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-white/10 px-4 py-3">
+              <button
+                onClick={() => setModalOpen(false)}
+                className="rounded-lg border border-white/20 px-3 py-2 text-sm text-slate-200 hover:border-cyan-300/60"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuizView({
+  quiz,
+  setQuiz,
+}: {
+  quiz: QuizQuestion[];
+  setQuiz: (q: QuizQuestion[] | null) => void;
+}) {
+  const [step, setStep] = useState(0);
+  const answered = quiz.filter((q) => q.userAnswer !== undefined).length;
+  const total = quiz.length;
+  const correct = quiz.filter((q) => q.userAnswer === q.answer).length;
+  const percent = total ? Math.round((correct / total) * 100) : 0;
+
+  const currentIndex = Math.min(step, Math.max(0, total - 1));
+  const current = quiz[currentIndex];
+  if (!current) {
+    return <p className="text-sm text-slate-200">Нет вопросов. Попробуйте сгенерировать снова.</p>;
+  }
+
+  const select = (idx: number, option: number) => {
+    setQuiz(
+      quiz.map((q, i) =>
+        i === idx && q.userAnswer === undefined
+          ? { ...q, userAnswer: option }
+          : q
+      )
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between text-xs text-slate-300">
+        <span>Вопрос {currentIndex + 1} из {total}</span>
+        <span>Отвечено: {answered}/{total}</span>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+        <p className="text-base font-semibold text-white mb-3">{currentIndex + 1}. {current.question}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {current.options.map((opt, oi) => {
+            const selected = current.userAnswer === oi;
+            const isCorrect = current.userAnswer !== undefined && current.answer === oi;
+            return (
+              <button
+                key={oi}
+                onClick={() => select(currentIndex, oi)}
+                disabled={current.userAnswer !== undefined}
+                className={cx(
+                  "w-full rounded-lg border px-3 py-3 text-left text-base transition",
+                  selected ? "border-cyan-400/80 bg-cyan-400/10 text-white" : "border-white/15 bg-white/5 text-slate-200",
+                  current.userAnswer !== undefined && isCorrect && "border-emerald-400 bg-emerald-400/10",
+                  current.userAnswer !== undefined && selected && !isCorrect && "border-rose-400 bg-rose-400/10"
+                )}
+              >
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={() => setStep(Math.max(0, currentIndex - 1))}
+          disabled={currentIndex === 0}
+          className="rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-200 disabled:opacity-40"
+        >
+          Назад
+        </button>
+        <button
+          onClick={() => setStep(Math.min(total - 1, currentIndex + 1))}
+          disabled={current.userAnswer === undefined || currentIndex === total - 1}
+          className="rounded-lg bg-gradient-to-r from-cyan-400 to-indigo-500 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-50"
+        >
+          Далее
+        </button>
+      </div>
+
+      {answered === total && total > 0 && (
+        <div className="rounded-xl border border-white/10 bg-emerald-400/10 px-4 py-3 text-sm text-white">
+          <p className="font-semibold">Результат</p>
+          <p>
+            Правильно: {correct} из {total} ({percent}%)
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
