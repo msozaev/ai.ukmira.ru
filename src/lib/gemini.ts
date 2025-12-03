@@ -40,7 +40,7 @@ const modeGuides: Record<StudioMode, string> = {
   audio:
     "Сделай сценарий аудиопересказа на 3–5 минут. Добавь цепляющий зачин, 3–4 смысловых блока, плавные переходы и финальный вывод.",
   video:
-    "Подготовь сценарий видеоролика 3–5 минут: интро, 4–6 сцен, подсказки для визуалов (b-roll, схемы), заключение и CTA для дальнейшего изучения.",
+    "Верни ТОЛЬКО JSON без пояснений. Формат: {\"title\":\"...\",\"scenes\":[{\"text\":\"Текст озвучки (нарратив)...\",\"visual\":\"Подробное описание картинки для генерации (на английском)...\"}]}. Сделай 5-7 сцен. Текст должен быть готовым для чтения вслух. Visual должен быть детальным prompt для DALL-E/Midjourney.",
   mindmap:
     "Верни ментальную карту в виде вложенного списка: главные узлы, подузлы, примеры. Не более 3 уровней вложенности.",
   report:
@@ -89,7 +89,7 @@ export async function runGemini(options: {
       temperature: 0.35,
       topP: 0.95,
       topK: 32,
-      maxOutputTokens: 2048,
+      maxOutputTokens: 8192,
     },
   });
 
@@ -106,4 +106,38 @@ export async function runGemini(options: {
 
   const text = result.response.text();
   return text;
+}
+
+export async function generateImage(prompt: string): Promise<string> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error("GOOGLE_API_KEY не задан");
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      instances: [{ prompt }],
+      parameters: {
+        sampleCount: 1,
+        aspectRatio: "3:4",
+        outputOptions: { mimeType: "image/jpeg" }
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Imagen API error: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
+
+  if (!base64Image) {
+    throw new Error("No image generated");
+  }
+
+  return base64Image;
 }

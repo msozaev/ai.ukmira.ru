@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { v4 as uuid } from "uuid";
 import type { ChatMessage, Source, StudioMode } from "@/lib/gemini";
 import { marked } from "marked";
 
-marked.setOptions({ gfm: true, breaks: true, headerIds: false, mangle: false });
+marked.setOptions({ gfm: true, breaks: true });
 
 type StudioCard = {
   key: StudioMode;
@@ -18,6 +18,7 @@ type ParsedQuiz = { quiz?: QuizQuestion[]; message: string };
 
 type InfographicSpec = { title: string; blocks: { title: string; content: string }[]; takeaway?: string };
 type SlidesSpec = { title: string; slides: { title: string; bullets: string[] }[] };
+type VideoSpec = { title: string; scenes: { text: string; visual: string; image?: string | null }[] };
 
 function extractQuiz(raw: string): ParsedQuiz {
   const codeBlockMatch = raw.match(/```json([\s\S]*?)```/i);
@@ -28,9 +29,9 @@ function extractQuiz(raw: string): ParsedQuiz {
     return raw;
   })();
 
-const parseQuestionsArray = (parsed: unknown) => {
-  const obj = parsed as { questions?: unknown };
-  if (Array.isArray(obj.questions)) {
+  const parseQuestionsArray = (parsed: unknown) => {
+    const obj = parsed as { questions?: unknown };
+    if (Array.isArray(obj.questions)) {
       const quiz = obj.questions
         .filter(
           (q: { question: unknown; options: unknown[] }) =>
@@ -70,7 +71,7 @@ const parseQuestionsArray = (parsed: unknown) => {
       const parsed = JSON.parse(candidate);
       const quiz = parseQuestionsArray(parsed);
       if (quiz) return { quiz, message: "Тест готов. Нажмите, чтобы пройти." };
-    } catch {}
+    } catch { }
   }
 
   // Fallback: parse markdown-like MCQ
@@ -123,7 +124,7 @@ function parseInfographic(raw: string): InfographicSpec | null {
         return { title: String(parsed.title), blocks, takeaway: typeof parsed.takeaway === "string" ? parsed.takeaway : undefined };
       }
     }
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -141,7 +142,7 @@ function parseSlides(raw: string): SlidesSpec | null {
         .filter((s: { bullets: string[] }) => s.bullets.length);
       if (slides.length) return { title: String(parsed.title), slides };
     }
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -161,6 +162,8 @@ type StudioResult = {
   quiz?: QuizQuestion[];
   infographic?: InfographicSpec;
   slides?: SlidesSpec;
+  video?: VideoSpec;
+  image?: string;
 };
 
 const studioCards: StudioCard[] = [
@@ -203,6 +206,8 @@ export default function Home() {
   const [modalQuiz, setModalQuiz] = useState<QuizQuestion[] | null>(null);
   const [modalInfographic, setModalInfographic] = useState<InfographicSpec | null>(null);
   const [modalSlides, setModalSlides] = useState<SlidesSpec | null>(null);
+  const [modalVideo, setModalVideo] = useState<VideoSpec | null>(null);
+  const [modalImage, setModalImage] = useState<string | null>(null);
   const [studioResults, setStudioResults] = useState<StudioResult[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
 
@@ -350,6 +355,9 @@ export default function Home() {
       let quizPayload: QuizQuestion[] | undefined = undefined;
       let infographicPayload: InfographicSpec | undefined = undefined;
       let slidesPayload: SlidesSpec | undefined = undefined;
+      let videoPayload: VideoSpec | undefined = data.video;
+      let imagePayload: string | undefined = data.image;
+
       if (mode === "quiz") {
         const parsed = extractQuiz(content);
         content = parsed.message;
@@ -360,10 +368,14 @@ export default function Home() {
           content = "Не удалось разобрать тест. Попробуйте снова.";
         }
       } else if (mode === "infographic") {
-        const parsed = parseInfographic(content);
-        if (parsed) {
-          infographicPayload = parsed;
+        if (imagePayload) {
           content = "Инфографика готова. Нажмите, чтобы посмотреть.";
+        } else {
+          const parsed = parseInfographic(content);
+          if (parsed) {
+            infographicPayload = parsed;
+            content = "Инфографика готова. Нажмите, чтобы посмотреть.";
+          }
         }
       } else if (mode === "slides") {
         const parsed = parseSlides(content);
@@ -371,11 +383,22 @@ export default function Home() {
           slidesPayload = parsed;
           content = "Презентация готова. Нажмите, чтобы посмотреть.";
         }
+      } else if (mode === "video" && videoPayload) {
+        content = "Видео готово. Нажмите, чтобы посмотреть.";
       }
       setStudioResults((prev) =>
         prev.map((item) =>
           item.id === id
-            ? { ...item, status: "ready", content, quiz: quizPayload, infographic: infographicPayload, slides: slidesPayload }
+            ? {
+                ...item,
+                status: "ready",
+                content,
+                quiz: quizPayload,
+                infographic: infographicPayload,
+                slides: slidesPayload,
+                video: videoPayload,
+                image: imagePayload,
+              }
             : item
         )
       );
@@ -548,7 +571,7 @@ export default function Home() {
 
             <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1">
               {messages.map((m, idx) => (
-                <div key={idx} className={cx("rounded-2xl px-3 py-2 max-w-3xl", m.role === "assistant" ? "bg-white/5" : "bg-cyan-500/20 border border-cyan-300/30 ml-auto")}> 
+                <div key={idx} className={cx("rounded-2xl px-3 py-2 max-w-3xl", m.role === "assistant" ? "bg-white/5" : "bg-cyan-500/20 border border-cyan-300/30 ml-auto")}>
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-1">{m.role === "assistant" ? "Miraverse" : "Вы"}</p>
                   <div
                     className="text-sm leading-relaxed text-slate-100 space-y-2"
@@ -630,6 +653,7 @@ export default function Home() {
                       let parsedContent = item.content;
                       let parsedInfographic = item.infographic;
                       let parsedSlides = item.slides;
+                      let parsedVideo = item.video;
 
                       if (!parsedQuiz) {
                         const parsed = extractQuiz(item.content);
@@ -652,6 +676,8 @@ export default function Home() {
                       setModalQuiz(parsedQuiz ? parsedQuiz.map((q) => ({ ...q })) : null);
                       setModalInfographic(parsedInfographic ?? null);
                       setModalSlides(parsedSlides ?? null);
+                      setModalVideo(parsedVideo ?? null);
+                      setModalImage(item.image ?? null);
                       setModalOpen(true);
                     }}
                     className={cx(
@@ -703,6 +729,12 @@ export default function Home() {
                 <InfographicView data={modalInfographic} />
               ) : modalSlides ? (
                 <SlidesView data={modalSlides} />
+              ) : modalVideo ? (
+                <VideoView data={modalVideo} />
+              ) : modalImage ? (
+                <div className="flex justify-center">
+                  <img src={`data:image/jpeg;base64,${modalImage}`} alt="Infographic" className="rounded-xl max-w-full h-auto" />
+                </div>
               ) : (
                 <div
                   className="text-base leading-relaxed text-slate-100 space-y-3"
@@ -851,6 +883,127 @@ function SlidesView({ data }: { data: SlidesSpec }) {
             </ul>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function VideoView({ data }: { data: VideoSpec }) {
+  const [currentSceneIdx, setCurrentSceneIdx] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [utterance, setUtterance] = useState<SpeechSynthesisUtterance | null>(null);
+
+  const currentScene = data.scenes[currentSceneIdx];
+
+  const speak = (text: string, onEnd: () => void) => {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ru-RU";
+    u.rate = 1.0;
+    u.pitch = 1.0;
+    u.onend = () => {
+      onEnd();
+    };
+    setUtterance(u);
+    window.speechSynthesis.speak(u);
+  };
+
+  const stop = () => {
+    window.speechSynthesis.cancel();
+    setIsPlaying(false);
+  };
+
+  const handlePlay = () => {
+    if (currentSceneIdx >= data.scenes.length) {
+      setCurrentSceneIdx(0);
+      setIsPlaying(true);
+      return;
+    }
+    setIsPlaying(true);
+  };
+
+  useEffect(() => {
+    if (isPlaying && currentScene) {
+      speak(currentScene.text, () => {
+        if (currentSceneIdx < data.scenes.length - 1) {
+          setCurrentSceneIdx((p) => p + 1);
+        } else {
+          setIsPlaying(false);
+        }
+      });
+    } else if (!isPlaying) {
+      window.speechSynthesis.cancel();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, currentSceneIdx]);
+
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-white/10 group">
+        {currentScene.image ? (
+          <img
+            src={`data:image/jpeg;base64,${currentScene.image}`}
+            alt={currentScene.text}
+            className={cx(
+              "h-full w-full object-cover transition-all duration-[5s] ease-linear",
+              isPlaying ? "scale-110" : "scale-100"
+            )}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-slate-800">
+            <p className="text-slate-500">Нет изображения</p>
+          </div>
+        )}
+        
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+
+        <div className="absolute bottom-0 left-0 right-0 p-6 text-center">
+           <p className="text-lg font-medium text-white drop-shadow-md bg-black/50 inline-block px-3 py-1 rounded-lg">
+            {currentScene.text}
+           </p>
+        </div>
+
+        {!isPlaying && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 transition hover:bg-black/40">
+            <button
+              onClick={handlePlay}
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-md transition hover:scale-110 hover:bg-white/30"
+            >
+              <span className="ml-1 text-3xl">▶</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+            <button onClick={() => setCurrentSceneIdx(Math.max(0, currentSceneIdx - 1))} disabled={currentSceneIdx === 0} className="text-slate-400 hover:text-white">⏮</button>
+            <span className="text-xs text-slate-400">
+            Сцена {currentSceneIdx + 1} из {data.scenes.length}
+            </span>
+            <button onClick={() => setCurrentSceneIdx(Math.min(data.scenes.length - 1, currentSceneIdx + 1))} disabled={currentSceneIdx === data.scenes.length - 1} className="text-slate-400 hover:text-white">⏭</button>
+        </div>
+        <button
+            onClick={isPlaying ? stop : handlePlay}
+            className="text-sm font-semibold text-cyan-400 hover:text-cyan-300"
+        >
+            {isPlaying ? "Пауза" : "Смотреть"}
+        </button>
+      </div>
+
+      <div className="space-y-2 max-h-40 overflow-y-auto rounded-xl border border-white/5 bg-white/5 p-3">
+          {data.scenes.map((s, i) => (
+              <button key={i} onClick={() => { setCurrentSceneIdx(i); setIsPlaying(true); }} className={cx("w-full text-left text-xs p-2 rounded hover:bg-white/5 transition", i === currentSceneIdx ? "text-cyan-300 bg-white/10" : "text-slate-400")}>
+                  <span className="font-bold mr-2">{i+1}.</span>
+                  {s.text}
+              </button>
+          ))}
       </div>
     </div>
   );
