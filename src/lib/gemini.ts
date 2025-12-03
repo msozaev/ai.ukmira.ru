@@ -40,7 +40,7 @@ const modeGuides: Record<StudioMode, string> = {
   audio:
     "Сделай сценарий аудиопересказа на 3–5 минут. Добавь цепляющий зачин, 3–4 смысловых блока, плавные переходы и финальный вывод.",
   video:
-    "Верни ТОЛЬКО JSON без пояснений. Создай сценарий видео-презентации. Формат: {\"title\":\"...\",\"scenes\":[{\"text\":\"Текст спикера (поясняет слайд)...\",\"visual\":\"Подробное описание содержания слайда (на английском). Не абстракция, а конкретика: 'Diagram showing the structure of...', 'Photo/Illustration of [subject]...', 'Chart comparing X and Y'. Слайд должен прямо иллюстрировать текст.\"}]}. Структура: 1. Титульный слайд. 2. Проблема/Контекст. 3-7. Ключевые тезисы. 8. Итоговый вывод. Всего 6-10 сцен. Стиль: профессиональный, обучающий.",
+    "Role: You are an expert Instructional Designer and Virtual Lecturer. Task: Create a script for a 'Video Learning Guide' (slides + voiceover). Audience: Students/professionals. Guidelines: 1. Structure: Title -> Agenda -> Body (1 concept/slide) -> Summary. 2. Visual Instructions: Explicitly design the slide. Format: 'HEADER: [Text] | BULLETS: [3-4 points] | GRAPHIC: [Chart/Diagram description]'. Keep text minimal. 3. Audio: Clear, professional. Do NOT just read bullets; explain context. Fidelity: Only use source concepts. IMPORTANT: RETURN ONLY JSON. Format: {\"title\":\"...\",\"scenes\":[{\"text\":\"Narration text (Russian)...\",\"visual\":\"Slide description (English) using HEADER | BULLETS | GRAPHIC format...\"}]}. Generate 8-12 scenes.",
   mindmap:
     "Верни ментальную карту в виде вложенного списка: главные узлы, подузлы, примеры. Не более 3 уровней вложенности.",
   report:
