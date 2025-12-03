@@ -18,7 +18,7 @@ type ParsedQuiz = { quiz?: QuizQuestion[]; message: string };
 
 type InfographicSpec = { title: string; blocks: { title: string; content: string }[]; takeaway?: string };
 type SlidesSpec = { title: string; slides: { title: string; bullets: string[] }[] };
-type VideoSpec = { title: string; scenes: { text: string; visual: string; image?: string | null }[] };
+type VideoSpec = { title: string; scenes: { text: string; visual: string; image?: string | null; audio?: string | null }[] };
 
 function extractQuiz(raw: string): ParsedQuiz {
   const codeBlockMatch = raw.match(/```json([\s\S]*?)```/i);
@@ -891,25 +891,41 @@ function SlidesView({ data }: { data: SlidesSpec }) {
 function VideoView({ data }: { data: VideoSpec }) {
   const [currentSceneIdx, setCurrentSceneIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [utterance, setUtterance] = useState<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const currentScene = data.scenes[currentSceneIdx];
 
-  const speak = (text: string, onEnd: () => void) => {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "ru-RU";
-    u.rate = 1.0;
-    u.pitch = 1.0;
-    u.onend = () => {
-      onEnd();
-    };
-    setUtterance(u);
-    window.speechSynthesis.speak(u);
+  const playAudioForScene = (index: number) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    const scene = data.scenes[index];
+    if (scene.audio) {
+        const audio = new Audio(scene.audio);
+        audioRef.current = audio;
+        audio.onended = handleSceneEnd;
+        audio.play().catch(e => console.error("Play error", e));
+    } else {
+        // Fallback if audio generation failed on server
+        console.warn("No audio for scene, falling back to silence/timer");
+        setTimeout(handleSceneEnd, 3000); 
+    }
+  };
+
+  const handleSceneEnd = () => {
+    if (currentSceneIdx < data.scenes.length - 1) {
+      setCurrentSceneIdx((p) => p + 1);
+    } else {
+      setIsPlaying(false);
+    }
   };
 
   const stop = () => {
-    window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
     setIsPlaying(false);
   };
 
@@ -923,37 +939,41 @@ function VideoView({ data }: { data: VideoSpec }) {
   };
 
   useEffect(() => {
-    if (isPlaying && currentScene) {
-      speak(currentScene.text, () => {
-        if (currentSceneIdx < data.scenes.length - 1) {
-          setCurrentSceneIdx((p) => p + 1);
-        } else {
-          setIsPlaying(false);
-        }
-      });
-    } else if (!isPlaying) {
-      window.speechSynthesis.cancel();
+    if (isPlaying) {
+      playAudioForScene(currentSceneIdx);
+    } else {
+      if (audioRef.current) audioRef.current.pause();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, currentSceneIdx]);
 
   useEffect(() => {
     return () => {
-      window.speechSynthesis.cancel();
+      if (audioRef.current) audioRef.current.pause();
     };
   }, []);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-white/10 group">
+      <div ref={containerRef} className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-white/10 group">
         {currentScene.image ? (
           <img
             src={`data:image/jpeg;base64,${currentScene.image}`}
             alt={currentScene.text}
-            className={cx(
-              "h-full w-full object-cover transition-all duration-[5s] ease-linear",
-              isPlaying ? "scale-110" : "scale-100"
-            )}
+            className="h-full w-full object-contain" // Removed scale-110 transition
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-slate-800">
@@ -961,13 +981,7 @@ function VideoView({ data }: { data: VideoSpec }) {
           </div>
         )}
         
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-
-        <div className="absolute bottom-0 left-0 right-0 p-6 text-center">
-           <p className="text-lg font-medium text-white drop-shadow-md bg-black/50 inline-block px-3 py-1 rounded-lg">
-            {currentScene.text}
-           </p>
-        </div>
+        {/* Removed gradient overlay and subtitles */}
 
         {!isPlaying && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 transition hover:bg-black/40">
@@ -979,15 +993,24 @@ function VideoView({ data }: { data: VideoSpec }) {
             </button>
           </div>
         )}
+
+        {/* Fullscreen Button */}
+        <button 
+            onClick={toggleFullscreen}
+            className="absolute top-2 right-2 p-2 rounded-lg bg-black/40 text-white opacity-0 group-hover:opacity-100 transition hover:bg-black/60"
+            title="На весь экран"
+        >
+            ⛶
+        </button>
       </div>
 
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-            <button onClick={() => setCurrentSceneIdx(Math.max(0, currentSceneIdx - 1))} disabled={currentSceneIdx === 0} className="text-slate-400 hover:text-white">⏮</button>
+            <button onClick={() => { stop(); setCurrentSceneIdx(Math.max(0, currentSceneIdx - 1)); }} disabled={currentSceneIdx === 0} className="text-slate-400 hover:text-white">⏮</button>
             <span className="text-xs text-slate-400">
             Сцена {currentSceneIdx + 1} из {data.scenes.length}
             </span>
-            <button onClick={() => setCurrentSceneIdx(Math.min(data.scenes.length - 1, currentSceneIdx + 1))} disabled={currentSceneIdx === data.scenes.length - 1} className="text-slate-400 hover:text-white">⏭</button>
+            <button onClick={() => { stop(); setCurrentSceneIdx(Math.min(data.scenes.length - 1, currentSceneIdx + 1)); }} disabled={currentSceneIdx === data.scenes.length - 1} className="text-slate-400 hover:text-white">⏭</button>
         </div>
         <button
             onClick={isPlaying ? stop : handlePlay}
@@ -999,7 +1022,7 @@ function VideoView({ data }: { data: VideoSpec }) {
 
       <div className="space-y-2 max-h-40 overflow-y-auto rounded-xl border border-white/5 bg-white/5 p-3">
           {data.scenes.map((s, i) => (
-              <button key={i} onClick={() => { setCurrentSceneIdx(i); setIsPlaying(true); }} className={cx("w-full text-left text-xs p-2 rounded hover:bg-white/5 transition", i === currentSceneIdx ? "text-cyan-300 bg-white/10" : "text-slate-400")}>
+              <button key={i} onClick={() => { stop(); setCurrentSceneIdx(i); setIsPlaying(true); }} className={cx("w-full text-left text-xs p-2 rounded hover:bg-white/5 transition", i === currentSceneIdx ? "text-cyan-300 bg-white/10" : "text-slate-400")}>
                   <span className="font-bold mr-2">{i+1}.</span>
                   {s.text}
               </button>

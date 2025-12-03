@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runGemini, generateImage, type Source, type StudioMode, type ChatMessage } from "@/lib/gemini";
+import { runGemini, generateImage, generateSpeech, type Source, type StudioMode, type ChatMessage } from "@/lib/gemini";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // seconds, to allow slower Gemini calls
@@ -47,9 +47,14 @@ export async function POST(req: NextRequest) {
       // Robust JSON extraction: find first '{' and last '}'
       const start = scriptRaw.indexOf("{");
       const end = scriptRaw.lastIndexOf("}");
-      const jsonCandidate = (start >= 0 && end > start) 
+      let jsonCandidate = (start >= 0 && end > start) 
         ? scriptRaw.slice(start, end + 1) 
         : scriptRaw.replace(/```json|```/gi, "").trim();
+
+      // Attempt to fix common JSON issues from LLMs
+      jsonCandidate = jsonCandidate
+        .replace(/,\s*}/g, "}") // Remove trailing commas
+        .replace(/,\s*]/g, "]"); // Remove trailing commas in arrays
 
       let scriptData;
       try {
@@ -64,31 +69,46 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ text: scriptRaw });
       }
 
-      // Generate images for scenes in parallel
-      const scenesWithImages = await Promise.all(
+      // Generate images AND audio for scenes in parallel
+      const scenesWithMedia = await Promise.all(
         scriptData.scenes.map(async (scene: { text: string; visual: string }) => {
-          try {
-            // Gemini 2.0 Flash (aka "Nano Banana" in your heart) is great at text rendering.
-            // We explicitly ask for the text to be rendered on the slide.
-            const stylePrompt = `Create a presentation slide. 
+          const mediaPromises: Promise<any>[] = [];
+          
+          // 1. Image Generation
+          const imagePromise = generateImage(`Create a presentation slide. 
             Visual style: Modern, minimalist, educational, clean vector graphics, white background.
             Content: ${scene.visual}
             IMPORTANT: The slide MUST clearly display the following text in Russian Cyrillic: "${scene.text.slice(0, 50)}..."
-            Render the text legibly as the slide title or main element.`;
-            
-            const img = await generateImage(stylePrompt);
-            return { ...scene, image: img };
-          } catch (e) {
-            console.error("Image Gen Error for scene", scene.visual, e);
-            return { ...scene, image: null };
-          }
+            Render the text legibly as the slide title or main element.`)
+            .then(img => ({ image: img }))
+            .catch(e => {
+              console.error("Image Gen Error", e);
+              return { image: null };
+            });
+          mediaPromises.push(imagePromise);
+
+          // 2. Audio Generation
+          const audioPromise = generateSpeech(scene.text)
+            .then(buffer => {
+               // Convert ArrayBuffer to base64 string for data URI
+               const binary = Buffer.from(buffer).toString('base64');
+               return { audio: `data:audio/wav;base64,${binary}` };
+            })
+            .catch(e => {
+              console.error("Audio Gen Error", e);
+              return { audio: null };
+            });
+          mediaPromises.push(audioPromise);
+
+          const results = await Promise.all(mediaPromises);
+          return results.reduce((acc, curr) => ({ ...acc, ...curr }), { ...scene });
         })
       );
 
       return NextResponse.json({
         video: {
           title: scriptData.title || "Видеопересказ",
-          scenes: scenesWithImages,
+          scenes: scenesWithMedia,
         },
         text: "Видео готово к просмотру.",
       });

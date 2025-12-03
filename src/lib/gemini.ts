@@ -140,3 +140,99 @@ export async function generateImage(prompt: string): Promise<string> {
     throw new Error(`Gemini Image Gen Failed: ${e.message}`);
   }
 }
+
+function createWavHeader(dataLength: number, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
+  const buffer = new ArrayBuffer(44);
+  const view = new DataView(buffer);
+
+  // RIFF chunk descriptor
+  writeString(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataLength, true);
+  writeString(view, 8, "WAVE");
+
+  // fmt sub-chunk
+  writeString(view, 12, "fmt ");
+  view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+  view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * (bitsPerSample / 8), true); // ByteRate
+  view.setUint16(32, numChannels * (bitsPerSample / 8), true); // BlockAlign
+  view.setUint16(34, bitsPerSample, true);
+
+  // data sub-chunk
+  writeString(view, 36, "data");
+  view.setUint32(40, dataLength, true);
+
+  return buffer;
+}
+
+function writeString(view: DataView, offset: number, string: string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}
+
+export async function generateSpeech(text: string): Promise<ArrayBuffer> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error("GOOGLE_API_KEY не задан");
+
+  // Correct model ID from documentation
+  const model = "gemini-2.5-flash-preview-tts";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Read this text naturally in Russian: " + text }] }],
+        generationConfig: {
+          response_modalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: "Kore" // Using a known high-quality voice
+              }
+            }
+          }
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini TTS API Error: ${response.status} ${errText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.candidates || data.candidates.length === 0) {
+      throw new Error("No candidates returned");
+    }
+
+    const part = data.candidates[0].content.parts[0];
+    if (!part || !part.inlineData || !part.inlineData.data) {
+        throw new Error("No audio data in response");
+    }
+
+    // Convert base64 to Uint8Array (Raw PCM)
+    const binaryString = atob(part.inlineData.data);
+    const len = binaryString.length;
+    const pcmBytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        pcmBytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // Add WAV Header
+    const header = createWavHeader(len);
+    const wavBuffer = new Uint8Array(header.byteLength + len);
+    wavBuffer.set(new Uint8Array(header), 0);
+    wavBuffer.set(pcmBytes, header.byteLength);
+
+    return wavBuffer.buffer;
+  } catch (e: any) {
+    console.error("Gemini Speech Gen Error:", e);
+    throw new Error(`Gemini Speech Gen Failed: ${e.message}`);
+  }
+}
