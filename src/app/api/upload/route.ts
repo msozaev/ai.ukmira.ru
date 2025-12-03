@@ -10,12 +10,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 async function extractPdfText(buffer: Buffer) {
-  // Use pdfjs in no-worker mode to avoid worker bundling issues in Next/Turbopack
-  const pdf = await getDocument({
-    data: new Uint8Array(buffer),
-    useWorker: false,
-    disableWorker: true,
-  }).promise;
+  // pdfjs runs in-process in the Node.js runtime; no web worker needed.
+  const pdf = await getDocument({ data: new Uint8Array(buffer) }).promise;
   const maxPages = Math.min(pdf.numPages, 20); // keep memory in check
   const parts: string[] = [];
   for (let i = 1; i <= maxPages; i++) {

@@ -24,7 +24,7 @@ function extractQuiz(raw: string): ParsedQuiz {
 
 const parseQuestionsArray = (parsed: unknown) => {
   const obj = parsed as { questions?: unknown };
-  if (Array.isArray(parsed?.questions)) {
+  if (Array.isArray(obj.questions)) {
       const quiz = obj.questions
         .filter(
           (q: { question: unknown; options: unknown[] }) =>
@@ -345,9 +345,9 @@ export default function Home() {
       <div className="mx-auto flex w-full flex-col gap-5 lg:gap-6">
         <header className="flex items-center justify-between rounded-2xl glass px-4 py-3 shadow-lg">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-cyan-400 to-indigo-500 shadow-lg" />
+            <img src="/logo.png" alt="MIRAVERSE" className="h-14 w-auto brightness-300 saturate-300" />
             <div>
-              <p className="text-sm text-slate-300">Miraverse </p>
+              <p className="text-sm text-slate-300">M I R A V E R S E </p>
               <h1 className="text-lg font-semibold text-white">ИИ Репетитор</h1>
             </div>
           </div>
