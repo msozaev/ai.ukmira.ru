@@ -68,7 +68,15 @@ export async function POST(req: NextRequest) {
       const scenesWithImages = await Promise.all(
         scriptData.scenes.map(async (scene: { text: string; visual: string }) => {
           try {
-            const img = await generateImage(scene.visual + " cinematic lighting, high detail, 4k");
+            // Gemini 2.0 Flash (aka "Nano Banana" in your heart) is great at text rendering.
+            // We explicitly ask for the text to be rendered on the slide.
+            const stylePrompt = `Create a presentation slide. 
+            Visual style: Modern, minimalist, educational, clean vector graphics, white background.
+            Content: ${scene.visual}
+            IMPORTANT: The slide MUST clearly display the following text in Russian Cyrillic: "${scene.text.slice(0, 50)}..."
+            Render the text legibly as the slide title or main element.`;
+            
+            const img = await generateImage(stylePrompt);
             return { ...scene, image: img };
           } catch (e) {
             console.error("Image Gen Error for scene", scene.visual, e);

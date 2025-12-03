@@ -40,7 +40,7 @@ const modeGuides: Record<StudioMode, string> = {
   audio:
     "Сделай сценарий аудиопересказа на 3–5 минут. Добавь цепляющий зачин, 3–4 смысловых блока, плавные переходы и финальный вывод.",
   video:
-    "Верни ТОЛЬКО JSON без пояснений. Формат: {\"title\":\"...\",\"scenes\":[{\"text\":\"Текст озвучки (нарратив)...\",\"visual\":\"Подробное описание картинки для генерации (на английском)...\"}]}. Сделай 5-7 сцен. Текст должен быть готовым для чтения вслух. Visual должен быть детальным prompt для DALL-E/Midjourney.",
+    "Верни ТОЛЬКО JSON без пояснений. Создай сценарий видео-презентации. Формат: {\"title\":\"...\",\"scenes\":[{\"text\":\"Текст спикера (поясняет слайд)...\",\"visual\":\"Подробное описание содержания слайда (на английском). Не абстракция, а конкретика: 'Diagram showing the structure of...', 'Photo/Illustration of [subject]...', 'Chart comparing X and Y'. Слайд должен прямо иллюстрировать текст.\"}]}. Структура: 1. Титульный слайд. 2. Проблема/Контекст. 3-7. Ключевые тезисы. 8. Итоговый вывод. Всего 6-10 сцен. Стиль: профессиональный, обучающий.",
   mindmap:
     "Верни ментальную карту в виде вложенного списка: главные узлы, подузлы, примеры. Не более 3 уровней вложенности.",
   report:
@@ -112,32 +112,31 @@ export async function generateImage(prompt: string): Promise<string> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_API_KEY не задан");
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-3-pro-image-preview" });
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      instances: [{ prompt }],
-      parameters: {
-        sampleCount: 1,
-        aspectRatio: "3:4",
-        outputOptions: { mimeType: "image/jpeg" }
-      },
-    }),
-  });
+  try {
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: "Generate an image: " + prompt }] }],
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Imagen API error: ${response.status} ${errorText}`);
+    const response = result.response;
+    if (!response.candidates || response.candidates.length === 0) {
+      throw new Error("No candidates returned");
+    }
+
+    // Check for inline data (image)
+    const part = response.candidates[0].content.parts[0];
+    if (!part || !part.inlineData || !part.inlineData.data) {
+       // Fallback check if it returned text refusing to generate
+       const text = response.text();
+       if (text) throw new Error(`Model returned text instead of image: ${text}`);
+       throw new Error("No image data in response");
+    }
+
+    return part.inlineData.data;
+  } catch (e: any) {
+    console.error("Gemini Image Gen Error:", e);
+    throw new Error(`Gemini Image Gen Failed: ${e.message}`);
   }
-
-  const data = await response.json();
-  const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
-
-  if (!base64Image) {
-    throw new Error("No image generated");
-  }
-
-  return base64Image;
 }
