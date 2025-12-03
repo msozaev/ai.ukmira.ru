@@ -3,6 +3,9 @@
 import { useMemo, useRef, useState } from "react";
 import { v4 as uuid } from "uuid";
 import type { ChatMessage, Source, StudioMode } from "@/lib/gemini";
+import { marked } from "marked";
+
+marked.setOptions({ gfm: true, breaks: true, headerIds: false, mangle: false });
 
 type StudioCard = {
   key: StudioMode;
@@ -12,6 +15,9 @@ type StudioCard = {
 };
 
 type ParsedQuiz = { quiz?: QuizQuestion[]; message: string };
+
+type InfographicSpec = { title: string; blocks: { title: string; content: string }[]; takeaway?: string };
+type SlidesSpec = { title: string; slides: { title: string; bullets: string[] }[] };
 
 function extractQuiz(raw: string): ParsedQuiz {
   const codeBlockMatch = raw.match(/```json([\s\S]*?)```/i);
@@ -105,6 +111,40 @@ const parseQuestionsArray = (parsed: unknown) => {
   return { message: raw };
 }
 
+function parseInfographic(raw: string): InfographicSpec | null {
+  try {
+    const cleaned = raw.replace(/```json|```/gi, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (parsed?.title && Array.isArray(parsed?.blocks)) {
+      const blocks = parsed.blocks
+        .filter((b: { title: unknown; content: unknown }) => typeof b?.title === "string" && typeof b?.content === "string")
+        .map((b: { title: string; content: string }) => ({ title: b.title, content: b.content }));
+      if (blocks.length) {
+        return { title: String(parsed.title), blocks, takeaway: typeof parsed.takeaway === "string" ? parsed.takeaway : undefined };
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function parseSlides(raw: string): SlidesSpec | null {
+  try {
+    const cleaned = raw.replace(/```json|```/gi, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (parsed?.title && Array.isArray(parsed?.slides)) {
+      const slides = parsed.slides
+        .filter((s: { title: unknown; bullets: unknown[] }) => typeof s?.title === "string" && Array.isArray(s?.bullets))
+        .map((s: { title: string; bullets: unknown[] }) => ({
+          title: s.title,
+          bullets: s.bullets.filter((b) => typeof b === "string") as string[],
+        }))
+        .filter((s: { bullets: string[] }) => s.bullets.length);
+      if (slides.length) return { title: String(parsed.title), slides };
+    }
+  } catch {}
+  return null;
+}
+
 type QuizQuestion = {
   question: string;
   options: string[];
@@ -119,6 +159,8 @@ type StudioResult = {
   status: "loading" | "ready" | "error";
   content: string;
   quiz?: QuizQuestion[];
+  infographic?: InfographicSpec;
+  slides?: SlidesSpec;
 };
 
 const studioCards: StudioCard[] = [
@@ -159,6 +201,8 @@ export default function Home() {
   const [modalTitle, setModalTitle] = useState<string>("");
   const [modalContent, setModalContent] = useState<string>("");
   const [modalQuiz, setModalQuiz] = useState<QuizQuestion[] | null>(null);
+  const [modalInfographic, setModalInfographic] = useState<InfographicSpec | null>(null);
+  const [modalSlides, setModalSlides] = useState<SlidesSpec | null>(null);
   const [studioResults, setStudioResults] = useState<StudioResult[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
 
@@ -285,7 +329,7 @@ export default function Home() {
       report: "Сформируй аналитический отчёт с выводами и рекомендациями.",
       flashcards: "Сделай 10 карточек Вопрос/Ответ.",
       quiz:
-        "Верни ТОЛЬКО JSON без пояснений и текста. Формат: {\"questions\":[{\"question\":\"...\",\"options\":[\"вариант1\",\"вариант2\",\"вариант3\",\"вариант4\"],\"answer\":0}]}. 6-8 вопросов, options ровно 4, answer — индекс правильного (0-3). Без маркдауна, без троеточий, без текста вокруг.",
+        "Верни ТОЛЬКО JSON без пояснений и текста. Формат: {\"questions\":[{\"question\":\"...\",\"options\":[\"вариант1\",\"вариант2\",\"вариант3\",\"вариант4\"],\"answer\":0}]}. 5-10 вопросов, options ровно 4, answer — индекс правильного (0-3). Без маркдауна, без троеточий, без текста вокруг.",
       infographic: "Опиши структуру инфографики и данные для неё.",
       slides: "Составь план презентации на 10 слайдов с заметками спикера.",
     };
@@ -304,6 +348,8 @@ export default function Home() {
       const data = await res.json();
       let content = data.text ?? data.error ?? "Нет ответа";
       let quizPayload: QuizQuestion[] | undefined = undefined;
+      let infographicPayload: InfographicSpec | undefined = undefined;
+      let slidesPayload: SlidesSpec | undefined = undefined;
       if (mode === "quiz") {
         const parsed = extractQuiz(content);
         content = parsed.message;
@@ -313,11 +359,23 @@ export default function Home() {
         if (!quizPayload && parsed.message === content && content === "Нет ответа") {
           content = "Не удалось разобрать тест. Попробуйте снова.";
         }
+      } else if (mode === "infographic") {
+        const parsed = parseInfographic(content);
+        if (parsed) {
+          infographicPayload = parsed;
+          content = "Инфографика готова. Нажмите, чтобы посмотреть.";
+        }
+      } else if (mode === "slides") {
+        const parsed = parseSlides(content);
+        if (parsed) {
+          slidesPayload = parsed;
+          content = "Презентация готова. Нажмите, чтобы посмотреть.";
+        }
       }
       setStudioResults((prev) =>
         prev.map((item) =>
           item.id === id
-            ? { ...item, status: "ready", content, quiz: quizPayload }
+            ? { ...item, status: "ready", content, quiz: quizPayload, infographic: infographicPayload, slides: slidesPayload }
             : item
         )
       );
@@ -364,12 +422,12 @@ export default function Home() {
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Источники</p>
                 <h2 className="text-lg font-semibold text-white">Рабочая коллекция</h2>
               </div>
-              <button
+              {/* <button
                 onClick={() => setSelectedSources(sources.map((s) => s.id))}
                 className="text-xs text-cyan-200 hover:text-cyan-100"
               >
                 Выбрать все
-              </button>
+              </button> */}
             </div>
 
             <div className="space-y-2">
@@ -492,7 +550,10 @@ export default function Home() {
               {messages.map((m, idx) => (
                 <div key={idx} className={cx("rounded-2xl px-3 py-2 max-w-3xl", m.role === "assistant" ? "bg-white/5" : "bg-cyan-500/20 border border-cyan-300/30 ml-auto")}> 
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-1">{m.role === "assistant" ? "Miraverse" : "Вы"}</p>
-                  <div className="text-sm leading-relaxed whitespace-pre-wrap text-slate-100">{m.content}</div>
+                  <div
+                    className="text-sm leading-relaxed text-slate-100 space-y-2"
+                    dangerouslySetInnerHTML={{ __html: marked.parse(m.content || "") }}
+                  />
                 </div>
               ))}
               {isChatLoading && <div className="text-sm text-slate-400">Генерация ответа...</div>}
@@ -565,9 +626,32 @@ export default function Home() {
                     disabled={item.status === "loading"}
                     onClick={() => {
                       if (item.status !== "ready" && item.status !== "error") return;
+                      let parsedQuiz = item.quiz;
+                      let parsedContent = item.content;
+                      let parsedInfographic = item.infographic;
+                      let parsedSlides = item.slides;
+
+                      if (!parsedQuiz) {
+                        const parsed = extractQuiz(item.content);
+                        if (parsed.quiz?.length) parsedQuiz = parsed.quiz;
+                        if (parsed.message) parsedContent = parsed.message;
+                      }
+
+                      if (!parsedInfographic && item.mode === "infographic") {
+                        parsedInfographic = parseInfographic(item.content) ?? undefined;
+                        if (parsedInfographic) parsedContent = "Инфографика готова. Нажмите, чтобы посмотреть.";
+                      }
+
+                      if (!parsedSlides && item.mode === "slides") {
+                        parsedSlides = parseSlides(item.content) ?? undefined;
+                        if (parsedSlides) parsedContent = "Презентация готова. Нажмите, чтобы посмотреть.";
+                      }
+
                       setModalTitle(item.title);
-                      setModalContent(item.content);
-                      setModalQuiz(item.quiz ? item.quiz.map((q) => ({ ...q })) : null);
+                      setModalContent(parsedContent);
+                      setModalQuiz(parsedQuiz ? parsedQuiz.map((q) => ({ ...q })) : null);
+                      setModalInfographic(parsedInfographic ?? null);
+                      setModalSlides(parsedSlides ?? null);
                       setModalOpen(true);
                     }}
                     className={cx(
@@ -615,8 +699,15 @@ export default function Home() {
                 <p className="text-base text-slate-200">Генерация...</p>
               ) : modalQuiz ? (
                 <QuizView quiz={modalQuiz} setQuiz={setModalQuiz} />
+              ) : modalInfographic ? (
+                <InfographicView data={modalInfographic} />
+              ) : modalSlides ? (
+                <SlidesView data={modalSlides} />
               ) : (
-                <div className="whitespace-pre-wrap text-base leading-relaxed text-slate-100">{modalContent}</div>
+                <div
+                  className="text-base leading-relaxed text-slate-100 space-y-3"
+                  dangerouslySetInnerHTML={{ __html: marked.parse(modalContent || "") }}
+                />
               )}
             </div>
             <div className="flex justify-end gap-2 border-t border-white/10 px-4 py-3">
@@ -720,6 +811,47 @@ function QuizView({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function InfographicView({ data }: { data: InfographicSpec }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-lg font-semibold text-white">{data.title}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {data.blocks.map((b, i) => (
+          <div key={i} className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="text-sm font-semibold text-white mb-1">{b.title}</p>
+            <p className="text-sm text-slate-200 leading-relaxed">{b.content}</p>
+          </div>
+        ))}
+      </div>
+      {data.takeaway && (
+        <div className="rounded-xl border border-emerald-400/50 bg-emerald-400/10 px-3 py-2 text-sm text-white">
+          {data.takeaway}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SlidesView({ data }: { data: SlidesSpec }) {
+  return (
+    <div className="space-y-4">
+      <p className="text-lg font-semibold text-white">{data.title}</p>
+      <div className="space-y-3">
+        {data.slides.map((s, i) => (
+          <div key={i} className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="text-sm font-semibold text-white mb-2">Слайд {i + 1}: {s.title}</p>
+            <ul className="list-disc pl-4 text-sm text-slate-200 space-y-1">
+              {s.bullets.map((b, bi) => (
+                <li key={bi}>{b}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
