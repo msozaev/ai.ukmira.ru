@@ -71,15 +71,16 @@ export async function POST(req: NextRequest) {
 
       // Generate images AND audio for scenes in parallel
       const scenesWithMedia = await Promise.all(
-        scriptData.scenes.map(async (scene: { text: string; visual: string }) => {
+        scriptData.scenes.map(async (scene: { text: string; visual: string; headline?: string }) => {
           const mediaPromises: Promise<any>[] = [];
           
           // 1. Image Generation
+          const slideText = scene.headline || scene.text.slice(0, 50);
           const imagePromise = generateImage(`Create a presentation slide. 
             Visual style: Modern, minimalist, educational, clean vector graphics, white background.
             Content: ${scene.visual}
-            IMPORTANT: The slide MUST clearly display the following text in Russian Cyrillic: "${scene.text.slice(0, 50)}..."
-            Render the text legibly as the slide title or main element.`)
+            IMPORTANT: The slide MUST clearly display the following text in Russian Cyrillic: "${slideText}"
+            Render the text legibly as the slide title.`)
             .then(img => ({ image: img }))
             .catch(e => {
               console.error("Image Gen Error", e);

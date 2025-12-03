@@ -1008,7 +1008,7 @@ function VideoView({ data }: { data: VideoSpec }) {
         <div className="flex items-center gap-2">
             <button onClick={() => { stop(); setCurrentSceneIdx(Math.max(0, currentSceneIdx - 1)); }} disabled={currentSceneIdx === 0} className="text-slate-400 hover:text-white">⏮</button>
             <span className="text-xs text-slate-400">
-            Сцена {currentSceneIdx + 1} из {data.scenes.length}
+            {currentSceneIdx + 1} из {data.scenes.length}
             </span>
             <button onClick={() => { stop(); setCurrentSceneIdx(Math.min(data.scenes.length - 1, currentSceneIdx + 1)); }} disabled={currentSceneIdx === data.scenes.length - 1} className="text-slate-400 hover:text-white">⏭</button>
         </div>
