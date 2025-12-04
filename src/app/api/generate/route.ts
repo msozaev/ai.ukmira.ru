@@ -95,10 +95,10 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             audioProject: {
-                title: scriptData.title || "Аудиопересказ",
+                title: scriptData.title || "Подкаст",
                 audioUrl: audioUrl
             },
-            text: "Аудиопересказ готов."
+            text: "Подкаст готов."
         });
     }
 

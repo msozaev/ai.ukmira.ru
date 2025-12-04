@@ -257,7 +257,7 @@ type StudioResult = {
 };
 
 const studioCards: StudioCard[] = [
-  { key: "audio", title: "Аудиопересказ", desc: "", gradient: "from-sky-400/50 to-cyan-500/30" },
+  { key: "audio", title: "Подкаст", desc: "", gradient: "from-sky-400/50 to-cyan-500/30" },
   { key: "video", title: "Видеопересказ", desc: "", gradient: "from-emerald-400/50 to-teal-500/30" },
   { key: "mindmap", title: "Ментальная карта", desc: "", gradient: "from-violet-400/50 to-indigo-500/30" },
   { key: "report", title: "Отчеты", desc: "", gradient: "from-amber-400/50 to-orange-500/30" },
@@ -271,6 +271,42 @@ type Tab = "file" | "link" | "youtube" | "text" | null;
 
 const cx = (...classes: (string | boolean | undefined | null)[]) =>
   classes.filter(Boolean).join(" ");
+
+const Icons = {
+  File: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+  ),
+  Link: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+  ),
+  Youtube: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+  ),
+  Text: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M12 18H8"/><path d="M16 14H8"/><path d="M16 10H8"/></svg>
+  ),
+  Mic: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+  ),
+  Video: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2" ry="2"/></svg>
+  ),
+  Layers: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12.83 2.46 5.79 2.41a2 2 0 0 1 0 3.69l-5.79 2.41a2 2 0 0 1-1.66 0L5.38 8.56a2 2 0 0 1 0-3.69l5.79-2.41a2 2 0 0 1 1.66 0Z"/><path d="m22 10-7.93 3.3a2 2 0 0 1-1.66 0L2 10"/><path d="m22 14-7.93 3.3a2 2 0 0 1-1.66 0L2 14"/><path d="m22 18-7.93 3.3a2 2 0 0 1-1.66 0L2 18"/></svg>
+  ),
+  Brain: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></svg>
+  ),
+  PieChart: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+  ),
+  Presentation: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+  ),
+  Briefcase: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+  ),
+};
 
 export default function Home() {
   const [sources, setSources] = useState<Source[]>([]);
@@ -327,6 +363,7 @@ export default function Home() {
     if (data?.sources) {
       setSources((prev) => [...prev, ...data.sources]);
       setSelectedSources((prev) => [...prev, ...data.sources.map((s: Source) => s.id)]);
+      setActiveTab(null);
       data.sources.forEach((s: Source) => {
         if (s.summary) {
           setMessages((prev) => [
@@ -539,7 +576,7 @@ export default function Home() {
       } else if (mode === "video" && videoPayload) {
         content = "Видео готово. Нажмите, чтобы посмотреть.";
       } else if (mode === "audio" && audioPayload) {
-        content = "Аудиопересказ готов. Нажмите, чтобы слушать.";
+        content = "Подкаст готов. Нажмите, чтобы слушать.";
       }
       setStudioResults((prev) =>
         prev.map((item) =>
@@ -583,27 +620,28 @@ export default function Home() {
       <div className="mx-auto flex w-full flex-1 flex-col gap-5 lg:gap-6 min-h-0">
         <header className="flex items-center justify-between rounded-2xl glass px-4 py-2 shadow-lg no-hover-outline">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="MIRAVERSE" className="h-16 w-auto brightness-300 saturate-300" />
+            <img src="/logo.png" alt="MIRAVERSE" className="h-16 w-auto brightness-200 saturate-300" />
             <div>
               <p className="text-sm text-slate-300">ИИ Репетитор </p>
               <h1 className="text-lg font-semibold text-white">M I R A V E R S E</h1>
             </div>
           </div>
-          <div className="hidden items-center gap-3 text-sm text-slate-300 md:flex">
-            <button
+          <div className="hidden items-center gap-3 md:flex">
+             <button
               onClick={() => setCareerOpen(true)}
-              className="flex items-center gap-2 rounded-xl glass px-3 py-1.5 hover:bg-white/10 transition border border-transparent hover:border-white/10 text-slate-300 hover:text-white"
+              className="group flex items-center gap-2 rounded-xl bg-white/5 px-3 py-4 text-sm font-medium text-slate-300 transition-all hover:bg-white/10 hover:text-white border border-white/5 hover:border-white/10"
             >
-              <span className="text-lg">💼</span>
-              <span className="text-sm font-medium">Карьера</span>
+              <Icons.Briefcase className="h-6 w-6 text-slate-400 group-hover:text-cyan-600 transition-colors" />
+              <span>Карьера</span>
             </button>
+            
             <button 
               onClick={() => setProfileOpen(true)}
-              className="flex items-center gap-3 rounded-full glass px-3 py-1.5 hover:bg-white/10 transition border border-transparent hover:border-white/10"
+              className="group flex items-center gap-2 rounded-xl bg-white/5 px-3 py-3 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all"
             >
-              <span className="font-semibold text-white text-sm">Александр Волков</span>
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-blue-500 text-xs font-bold text-white shadow-lg border border-white/20">
-                АВ
+              <span className="text-sm font-medium text-slate-300 group-hover:text-white">Профиль</span>
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold text-white shadow-inner">
+                AB
               </div>
             </button>
           </div>
@@ -614,8 +652,8 @@ export default function Home() {
           <aside className="glass-strong dot-grid rounded-2xl p-4 h-full flex flex-col overflow-hidden min-h-0">
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Источники</p>
-                <h2 className="text-lg font-semibold text-white">Рабочая коллекция</h2>
+                {/* <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Источники данных</p> */}
+                <h2 className="text-xl font-semibold text-slate-300">Источники данных</h2>
               </div>
               {/* <button
                 onClick={() => setSelectedSources(sources.map((s) => s.id))}
@@ -625,35 +663,76 @@ export default function Home() {
               </button> */}
             </div>
 
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-4">
+              <div className="flex gap-2 bg-black/20 p-1 rounded-xl">
                 <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white"
+                  onClick={() => setActiveTab(activeTab === "file" ? null : "file")}
+                  className={cx(
+                    "flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg transition-all duration-200",
+                    activeTab === "file" 
+                      ? "bg-cyan-600 text-slate-900 shadow-lg shadow-cyan-600/20 font-semibold" 
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  )}
                 >
-                  📂 Файл
+                  <Icons.File className="w-5 h-5" />
+                  <span className="text-[10px] tracking-wide">Файл</span>
                 </button>
                 <button
                   onClick={() => setActiveTab(activeTab === "link" ? null : "link")}
-                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "link" && "border-cyan-300/50 text-cyan-100")}
+                  className={cx(
+                    "flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg transition-all duration-200",
+                    activeTab === "link" 
+                      ? "bg-cyan-700 text-slate-900 shadow-lg shadow-cyan-700/20 font-semibold" 
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  )}
                 >
-                  🔗 Ссылка
+                  <Icons.Link className="w-5 h-5" />
+                  <span className="text-[10px] tracking-wide">Ссылка</span>
                 </button>
                 <button
                   onClick={() => setActiveTab(activeTab === "youtube" ? null : "youtube")}
-                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "youtube" && "border-cyan-300/50 text-cyan-100")}
+                  className={cx(
+                    "flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg transition-all duration-200",
+                    activeTab === "youtube" 
+                      ? "bg-cyan-600 text-slate-900 shadow-lg shadow-cyan-600/20 font-semibold" 
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  )}
                 >
-                  ▶️ YouTube
+                  <Icons.Youtube className="w-5 h-5" />
+                  <span className="text-[10px] tracking-wide">YouTube</span>
                 </button>
                 <button
                   onClick={() => setActiveTab(activeTab === "text" ? null : "text")}
-                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "text" && "border-cyan-300/50 text-cyan-100")}
+                  className={cx(
+                    "flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg transition-all duration-200",
+                    activeTab === "text" 
+                      ? "bg-cyan-600 text-slate-900 shadow-lg shadow-cyan-600/20 font-semibold" 
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  )}
                 >
-                  📝 Текст
+                  <Icons.Text className="w-5 h-5" />
+                  <span className="text-[10px] tracking-wide">Текст</span>
                 </button>
               </div>
 
               {/* Dynamic forms */}
+              {activeTab === "file" && (
+                <div className="glass rounded-xl p-6 text-center space-y-3 border-dashed border-2 border-white/10 hover:border-cyan-400/30 transition-colors">
+                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-2">
+                    <Icons.File className="w-6 h-6 text-slate-300" />
+                  </div>
+                  <div>
+                     <p className="text-sm font-medium text-white">Загрузите документы</p>
+                     <p className="text-xs text-slate-400 mt-1">PDF, DOCX, TXT до 10МБ</p>
+                  </div>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()} 
+                    className="w-full rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20 transition"
+                  >
+                    Выбрать файлы
+                  </button>
+                </div>
+              )}
               {activeTab === "link" && (
                 <div className="glass rounded-xl p-3 space-y-2">
                   <input
@@ -705,7 +784,7 @@ export default function Home() {
 
               <div className="mt-3 space-y-2 flex-1 overflow-y-auto min-h-0 pr-1">
                 {sources.length === 0 && (
-                  <p className="text-sm text-slate-400">Добавьте PDF, ссылки, видео или текст, чтобы генерировать материалы.</p>
+                  <p className="text-sm text-slate-400">Добавьте PDF, ссылки, видео или текст.</p>
                 )}
                 {sources.map((src) => (
                   <button
@@ -713,7 +792,7 @@ export default function Home() {
                     onClick={() => toggleSource(src.id)}
                     className={cx(
                       "w-full rounded-xl px-3 py-2 text-left glass border border-transparent transition",
-                      selectedSources.includes(src.id) && "border-cyan-300/50 shadow-[0_0_0_1px_rgba(103,232,249,0.2)]"
+                      selectedSources.includes(src.id) && "border-cyan-600/50 shadow-[0_0_0_1px_rgba(103,232,249,0.2)]"
                     )}
                   >
                     <div className="flex items-start gap-3">
@@ -733,11 +812,11 @@ export default function Home() {
           <section className="glass-strong rounded-2xl p-4 flex flex-col h-full self-stretch min-h-0">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Чат</p>
-                <h2 className="text-xl font-semibold text-white">Диалог с тьютором</h2>
+                {/* <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Чат с репетитором</p> */}
+                <h2 className="text-xl font-semibold text-slate-300">Чат с репетитором</h2>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" /> Miraverse AI подключен
+              <div className="flex items-center gap-2 text-xs text-slate-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-300" /> MIRAVERSE AI подключен
               </div>
             </div>
 
@@ -747,7 +826,7 @@ export default function Home() {
                   key={idx}
                   className={cx(
                     "rounded-2xl px-3 py-2 max-w-3xl transition border border-transparent hover:border-blue-300/60 hover:shadow-[0_0_0_1px_rgba(96,165,250,0.35)]",
-                    m.role === "assistant" ? "bg-white/5" : "bg-cyan-500/20 border border-cyan-300/30 ml-auto"
+                    m.role === "assistant" ? "bg-white/5" : "bg-cyan-500/20 border border-cyan-600/30 ml-auto"
                   )}
                 > 
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-1">{m.role === "assistant" ? "Miraverse" : "Вы"}</p>
@@ -766,7 +845,7 @@ export default function Home() {
                   <button
                     key={s}
                     onClick={() => sendMessage(s)}
-                    className="rounded-full bg-white/5 px-3 py-1 text-xs text-slate-200 border border-white/10 hover:border-cyan-300/50"
+                    className="rounded-full bg-white/5 px-3 py-1 text-xs text-slate-200 border border-white/10 hover:border-cyan-600/50"
                   >
                     {s}
                   </button>
@@ -795,24 +874,43 @@ export default function Home() {
           <aside className="glass-strong dot-grid rounded-2xl p-4 space-y-3 h-full self-stretch flex flex-col overflow-hidden min-h-0">
             <div className="flex items-center justify-between pb-2 border-b border-white/10 shrink-0">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Студия</p>
-                <h2 className="text-xl font-semibold text-white">Автогенерация</h2>
+                {/* <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Студия</p> */}
+                <h2 className="text-xl font-semibold text-slate-300">Инструменты</h2>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              {studioCards.filter(card => card.key !== "mindmap" && card.key !== "report").map((card) => (
-                <button
-                  key={card.key}
-                  onClick={() => runStudio(card.key)}
-                  className="relative overflow-hidden rounded-lg border border-white/10 px-3 py-2 text-left glass"
-                >
-                  <div className={cx("absolute inset-0 blur-2xl opacity-70", `bg-gradient-to-br ${card.gradient}`)} />
-                  <div className="relative">
-                    <p className="text-sm font-semibold text-white">{card.title}</p>
-                  </div>
-                </button>
-              ))}
+            <div className="grid grid-cols-3 gap-3">
+              {studioCards.filter(card => card.key !== "mindmap" && card.key !== "report").map((card) => {
+                const IconComponent = {
+                  audio: Icons.Mic,
+                  video: Icons.Video,
+                  flashcards: Icons.Layers,
+                  quiz: Icons.Brain,
+                  infographic: Icons.PieChart,
+                  slides: Icons.Presentation,
+                }[card.key as string] || Icons.File;
+
+                return (
+                  <button
+                    key={card.key}
+                    onClick={() => runStudio(card.key)}
+                    className="group flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 transition-all hover:border-cyan-400/50 hover:bg-white/10 hover:shadow-lg hover:shadow-cyan-500/10"
+                  >
+                    <div className={cx(
+                      "flex h-10 w-10 items-center justify-center rounded-lg transition-all group-hover:scale-110",
+                      card.key === "audio" && "bg-sky-500/20 text-sky-300",
+                      card.key === "video" && "bg-emerald-500/20 text-emerald-300",
+                      card.key === "flashcards" && "bg-pink-500/20 text-pink-300",
+                      card.key === "quiz" && "bg-indigo-500/20 text-indigo-300",
+                      card.key === "infographic" && "bg-lime-500/20 text-lime-300",
+                      card.key === "slides" && "bg-fuchsia-500/20 text-fuchsia-300",
+                    )}>
+                      <IconComponent className="h-6 w-6" />
+                    </div>
+                    <span className="text-xs font-medium text-slate-300 group-hover:text-white">{card.title}</span>
+                  </button>
+                );
+              })}
             </div>
             <div className="glass mt-2 rounded-2xl border border-white/10 p-3 flex-1 flex flex-col min-h-0 space-y-2 overflow-hidden">
               {/* <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Результаты</p> */}
@@ -869,7 +967,7 @@ export default function Home() {
                     className={cx(
                       "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left transition",
                       item.status === "loading" && "opacity-70",
-                      "hover:border-cyan-300/50"
+                      "hover:border-cyan-600/50"
                     )}
                   >
                     <div className="flex items-center justify-between text-sm text-white">
@@ -979,7 +1077,7 @@ export default function Home() {
             <div className="flex justify-end gap-2 border-t border-white/10 px-4 py-3">
               <button
                 onClick={() => setModalOpen(false)}
-                className="rounded-lg border border-white/20 px-3 py-2 text-sm text-slate-200 hover:border-cyan-300/60"
+                className="rounded-lg border border-white/20 px-3 py-2 text-sm text-slate-200 hover:border-cyan-600/60"
               >
                 Закрыть
               </button>
@@ -1206,7 +1304,7 @@ function SlidesView({ data }: { data: SlidesSpec }) {
         </button>
         <button
             onClick={toggleFullscreen}
-            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-cyan-300 hover:bg-white/10 hover:text-cyan-200"
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-cyan-600 hover:bg-white/10 hover:text-cyan-200"
         >
             Развернуть
         </button>
@@ -1362,7 +1460,7 @@ function AudioPlayerView({ data }: { data: AudioSpec }) {
           max={duration}
           value={currentTime}
           onChange={handleSeek}
-          className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-300"
+          className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-600"
         />
         <div className="flex justify-between text-xs text-slate-400 font-mono">
           <span>{formatTime(currentTime)}</span>
@@ -1519,7 +1617,7 @@ function VideoView({ data }: { data: VideoSpec }) {
         </div>
         <button
             onClick={isPlaying ? stop : handlePlay}
-            className="text-sm font-semibold text-cyan-400 hover:text-cyan-300"
+            className="text-sm font-semibold text-cyan-400 hover:text-cyan-600"
         >
             {isPlaying ? "Пауза" : "Смотреть"}
         </button>
@@ -1527,7 +1625,7 @@ function VideoView({ data }: { data: VideoSpec }) {
 
       <div className="space-y-2 max-h-40 overflow-y-auto rounded-xl border border-white/5 bg-white/5 p-3">
           {data.scenes.map((s, i) => (
-              <button key={i} onClick={() => { stop(); setCurrentSceneIdx(i); setIsPlaying(true); }} className={cx("w-full text-left text-xs p-2 rounded hover:bg-white/5 transition", i === currentSceneIdx ? "text-cyan-300 bg-white/10" : "text-slate-400")}>
+              <button key={i} onClick={() => { stop(); setCurrentSceneIdx(i); setIsPlaying(true); }} className={cx("w-full text-left text-xs p-2 rounded hover:bg-white/5 transition", i === currentSceneIdx ? "text-cyan-600 bg-white/10" : "text-slate-400")}>
                   <span className="font-bold mr-2">{i+1}.</span>
                   {s.text}
               </button>
@@ -1685,7 +1783,7 @@ function JobPrepView() {
     return (
       <div className="max-w-5xl mx-auto">
         <header className="mb-8">
-          <button onClick={() => setStep('input')} className="text-sm text-slate-400 hover:text-cyan-300 mb-2 flex items-center gap-1 transition-colors">
+          <button onClick={() => setStep('input')} className="text-sm text-slate-400 hover:text-cyan-600 mb-2 flex items-center gap-1 transition-colors">
             ← Начать заново
           </button>
           <h2 className="text-3xl font-bold text-white">Подготовка: {jobDetails.title}</h2>
@@ -1703,7 +1801,7 @@ function JobPrepView() {
             </div>
             <h3 className="text-xl font-bold text-white mb-2">Учебный План</h3>
             <p className="text-slate-400 mb-4">Структурированный план из {studyPlan.length} модулей, охватывающий все ключевые требования.</p>
-            <span className="text-cyan-400 font-medium text-sm group-hover:text-cyan-300">Открыть План →</span>
+            <span className="text-cyan-400 font-medium text-sm group-hover:text-cyan-600">Открыть План →</span>
           </div>
 
           {/* Card 2: Readiness Test */}
@@ -1756,7 +1854,7 @@ function JobPrepView() {
   if (step === 'plan') {
     return (
       <div className="max-w-4xl mx-auto">
-        <button onClick={() => setStep('dashboard')} className="text-sm text-slate-400 hover:text-cyan-300 mb-6 flex items-center gap-2 transition-colors">
+        <button onClick={() => setStep('dashboard')} className="text-sm text-slate-400 hover:text-cyan-600 mb-6 flex items-center gap-2 transition-colors">
           ← Назад
         </button>
         
@@ -1819,7 +1917,7 @@ function JobPrepView() {
   if (step === 'test') {
     return (
       <div className="max-w-3xl mx-auto">
-        <button onClick={() => setStep('dashboard')} className="text-sm text-slate-400 hover:text-cyan-300 mb-6 flex items-center gap-2 transition-colors">
+        <button onClick={() => setStep('dashboard')} className="text-sm text-slate-400 hover:text-cyan-600 mb-6 flex items-center gap-2 transition-colors">
           ← Завершить Тест
         </button>
 
@@ -1984,7 +2082,7 @@ function SkillsPassportView() {
       {/* Header Card */}
       <div className="glass rounded-3xl p-8 shadow-lg border border-white/10 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-          <svg className="w-80 h-80 text-cyan-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+          <svg className="w-80 h-80 text-cyan-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
         </div>
         
         <div className="relative z-10 w-28 h-28 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-xl border-4 border-white/10">
@@ -1995,7 +2093,7 @@ function SkillsPassportView() {
           <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2 justify-center md:justify-start">
             <h1 className="text-3xl font-bold text-white">{passport.studentName}</h1>
             <span className="hidden md:inline text-slate-500">|</span>
-            <span className="text-cyan-300 font-semibold bg-cyan-900/30 px-3 py-1 rounded-full text-sm border border-cyan-500/30">Бизнес-информатика</span>
+            <span className="text-cyan-600 font-semibold bg-cyan-900/30 px-3 py-1 rounded-full text-sm border border-cyan-500/30">Бизнес-информатика</span>
           </div>
           
           <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-4">
@@ -2025,7 +2123,7 @@ function SkillsPassportView() {
               {cat.skills.map((skill, sIdx) => (
                 <div key={sIdx} className="group">
                   <div className="flex justify-between items-end mb-2">
-                    <span className="text-sm font-semibold text-slate-200 group-hover:text-cyan-300 transition-colors">{skill.name}</span>
+                    <span className="text-sm font-semibold text-slate-200 group-hover:text-cyan-600 transition-colors">{skill.name}</span>
                     <span className="text-xs font-bold text-slate-400 bg-white/5 px-2 py-0.5 rounded">{skill.score}/100</span>
                   </div>
                   <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden mb-2">
