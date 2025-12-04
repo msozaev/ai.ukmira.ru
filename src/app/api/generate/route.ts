@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runGemini, generateImage, generateSpeech, type Source, type StudioMode, type ChatMessage } from "@/lib/gemini";
+import { runGemini, generateImage, generateSpeech, generateMultiSpeakerSpeech, createWavHeader, type Source, type StudioMode, type ChatMessage } from "@/lib/gemini";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // seconds, to allow slower Gemini calls
@@ -34,6 +34,72 @@ export async function POST(req: NextRequest) {
       // 2. Generate the image
       const base64Image = await generateImage(visualPrompt);
       return NextResponse.json({ image: base64Image, text: "Инфографика сгенерирована" });
+    }
+
+    if (body.mode === "audio") {
+        const scriptRaw = await runGemini({
+            mode: body.mode,
+            prompt: body.prompt,
+            sources: body.sources || [],
+            history: body.history || [],
+        });
+
+        const cleanedJson = scriptRaw.replace(/```json|```/gi, "").trim();
+        let scriptData;
+        try {
+            scriptData = JSON.parse(cleanedJson);
+        } catch (e) {
+            console.error("JSON Parse Error", e);
+            return NextResponse.json({ text: scriptRaw });
+        }
+
+        const dialogue = scriptData.dialogue || [];
+        const CHUNK_SIZE = 30; // ~30 lines of dialogue per TTS request (approx 4-5 mins audio)
+        const allPcmChunks: Uint8Array[] = [];
+        let totalCombinedPcmLength = 0;
+
+        for (let i = 0; i < dialogue.length; i += CHUNK_SIZE) {
+            const chunk = dialogue.slice(i, i + CHUNK_SIZE);
+            try {
+                // Generate audio for this chunk
+                const audioBuffer = await generateMultiSpeakerSpeech(chunk);
+
+                if (audioBuffer && audioBuffer.byteLength > 44) {
+                    const pcmData = new Uint8Array(audioBuffer).slice(44); // Strip WAV header
+                    allPcmChunks.push(pcmData);
+                    totalCombinedPcmLength += pcmData.length;
+                }
+            } catch (e) {
+                console.error("Audio Gen Error for chunk:", e);
+                // Continue processing other chunks even if one fails, or decide to fail fast.
+                // For now, let's just log and continue.
+            }
+        }
+        
+        // Stitch all PCM chunks together into one
+        const finalCombinedPcm = new Uint8Array(totalCombinedPcmLength);
+        let offset = 0;
+        for (const pcmChunk of allPcmChunks) {
+            finalCombinedPcm.set(pcmChunk, offset);
+            offset += pcmChunk.length;
+        }
+
+        // Create new WAV Header for the full length
+        const header = createWavHeader(totalCombinedPcmLength);
+        const finalWavFile = new Uint8Array(header.byteLength + totalCombinedPcmLength);
+        finalWavFile.set(new Uint8Array(header), 0);
+        finalWavFile.set(finalCombinedPcm, header.byteLength);
+
+        const binary = Buffer.from(finalWavFile).toString('base64');
+        const audioUrl = `data:audio/wav;base64,${binary}`;
+
+        return NextResponse.json({
+            audioProject: {
+                title: scriptData.title || "Аудиопересказ",
+                audioUrl: audioUrl
+            },
+            text: "Аудиопересказ готов."
+        });
     }
 
     if (body.mode === "video") {
@@ -72,7 +138,8 @@ export async function POST(req: NextRequest) {
       // Generate images AND audio for scenes in parallel
       const scenesWithMedia = await Promise.all(
         scriptData.scenes.map(async (scene: { text: string; visual: string; headline?: string }) => {
-          const mediaPromises: Promise<any>[] = [];
+          type MediaResult = { image?: string | null; audio?: string | null };
+          const mediaPromises: Promise<MediaResult>[] = [];
           
           // 1. Image Generation
           const slideText = scene.headline || scene.text.slice(0, 50);

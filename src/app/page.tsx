@@ -19,6 +19,7 @@ type ParsedQuiz = { quiz?: QuizQuestion[]; message: string };
 type InfographicSpec = { title: string; blocks: { title: string; content: string }[]; takeaway?: string };
 type SlidesSpec = { title: string; slides: { title: string; bullets: string[] }[] };
 type VideoSpec = { title: string; scenes: { text: string; visual: string; image?: string | null; audio?: string | null }[] };
+type AudioSpec = { title: string; audioUrl: string };
 
 function extractQuiz(raw: string): ParsedQuiz {
   const codeBlockMatch = raw.match(/```json([\s\S]*?)```/i);
@@ -163,6 +164,7 @@ type StudioResult = {
   infographic?: InfographicSpec;
   slides?: SlidesSpec;
   video?: VideoSpec;
+  audioProject?: AudioSpec;
   image?: string;
 };
 
@@ -207,6 +209,7 @@ export default function Home() {
   const [modalInfographic, setModalInfographic] = useState<InfographicSpec | null>(null);
   const [modalSlides, setModalSlides] = useState<SlidesSpec | null>(null);
   const [modalVideo, setModalVideo] = useState<VideoSpec | null>(null);
+  const [modalAudio, setModalAudio] = useState<AudioSpec | null>(null);
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [studioResults, setStudioResults] = useState<StudioResult[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
@@ -355,8 +358,9 @@ export default function Home() {
       let quizPayload: QuizQuestion[] | undefined = undefined;
       let infographicPayload: InfographicSpec | undefined = undefined;
       let slidesPayload: SlidesSpec | undefined = undefined;
-      let videoPayload: VideoSpec | undefined = data.video;
-      let imagePayload: string | undefined = data.image;
+      const videoPayload: VideoSpec | undefined = data.video;
+      const audioPayload: AudioSpec | undefined = data.audioProject;
+      const imagePayload: string | undefined = data.image;
 
       if (mode === "quiz") {
         const parsed = extractQuiz(content);
@@ -385,6 +389,8 @@ export default function Home() {
         }
       } else if (mode === "video" && videoPayload) {
         content = "Видео готово. Нажмите, чтобы посмотреть.";
+      } else if (mode === "audio" && audioPayload) {
+        content = "Аудиопересказ готов. Нажмите, чтобы слушать.";
       }
       setStudioResults((prev) =>
         prev.map((item) =>
@@ -397,6 +403,7 @@ export default function Home() {
                 infographic: infographicPayload,
                 slides: slidesPayload,
                 video: videoPayload,
+                audioProject: audioPayload,
                 image: imagePayload,
               }
             : item
@@ -422,8 +429,8 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen px-3 py-6 sm:px-4 lg:px-6 xl:px-10">
-      <div className="mx-auto flex w-full flex-col gap-5 lg:gap-6">
+    <div className="min-h-screen flex flex-col px-3 pt-4 pb-4 sm:px-4 lg:px-6 xl:px-10">
+      <div className="mx-auto flex w-full flex-1 flex-col gap-5 lg:gap-6">
         <header className="flex items-center justify-between rounded-2xl glass px-4 py-2 shadow-lg">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="MIRAVERSE" className="h-16 w-auto brightness-300 saturate-300" />
@@ -437,7 +444,7 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="layout-grid">
+        <div className="layout-grid pb-4 flex-1 min-h-[75vh]">
           {/* Sidebar */}
           <aside className="glass-strong dot-grid rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
@@ -558,7 +565,7 @@ export default function Home() {
           </aside>
 
           {/* Chat */}
-          <section className="glass-strong rounded-2xl p-4 flex flex-col min-h-[75vh]">
+          <section className="glass-strong rounded-2xl p-4 flex flex-col h-full self-stretch">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Чат</p>
@@ -614,7 +621,7 @@ export default function Home() {
           </section>
 
           {/* Studio */}
-          <aside className="glass-strong rounded-2xl p-4 space-y-3 min-h-[75vh]">
+          <aside className="glass-strong rounded-2xl p-4 space-y-3 h-full self-stretch">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Студия</p>
@@ -653,7 +660,8 @@ export default function Home() {
                       let parsedContent = item.content;
                       let parsedInfographic = item.infographic;
                       let parsedSlides = item.slides;
-                      let parsedVideo = item.video;
+                      const parsedVideo = item.video;
+                      const parsedAudio = item.audioProject;
 
                       if (!parsedQuiz) {
                         const parsed = extractQuiz(item.content);
@@ -677,6 +685,7 @@ export default function Home() {
                       setModalInfographic(parsedInfographic ?? null);
                       setModalSlides(parsedSlides ?? null);
                       setModalVideo(parsedVideo ?? null);
+                      setModalAudio(parsedAudio ?? null);
                       setModalImage(item.image ?? null);
                       setModalOpen(true);
                     }}
@@ -689,7 +698,7 @@ export default function Home() {
                     <div className="flex items-center justify-between text-sm text-white">
                       <span>{item.title}</span>
                       <span className="text-xs text-slate-400">
-                        {item.status === "loading" ? "Генерация…" : item.status === "error" ? "Ошибка" : "Готово"}
+                        {item.status === "loading" ? "Готовим материал..." : item.status === "error" ? "Ошибка" : "Готово"}
                       </span>
                     </div>
                     {item.status === "ready" && (
@@ -731,6 +740,8 @@ export default function Home() {
                 <SlidesView data={modalSlides} />
               ) : modalVideo ? (
                 <VideoView data={modalVideo} />
+              ) : modalAudio ? (
+                <AudioPlayerView data={modalAudio} />
               ) : modalImage ? (
                 <div className="flex justify-center">
                   <img src={`data:image/jpeg;base64,${modalImage}`} alt="Infographic" className="rounded-xl max-w-full h-auto" />
@@ -876,17 +887,127 @@ function SlidesView({ data }: { data: SlidesSpec }) {
         {data.slides.map((s, i) => (
           <div key={i} className="rounded-xl border border-white/10 bg-white/5 p-3">
             <p className="text-sm font-semibold text-white mb-2">Слайд {i + 1}: {s.title}</p>
-            <ul className="list-disc pl-4 text-sm text-slate-200 space-y-1">
-              {s.bullets.map((b, bi) => (
-                <li key={bi}>{b}</li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+                        <ul className="list-disc pl-4 text-sm text-slate-200 space-y-1">
+                          {s.bullets.map((b, bi) => (
+                            <li key={bi}>{b}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }        
+        function AudioPlayerView({ data }: { data: AudioSpec }) {
+          const [isPlaying, setIsPlaying] = useState(false);
+          const [currentTime, setCurrentTime] = useState(0);
+          const [duration, setDuration] = useState(0);
+          const audioRef = useRef<HTMLAudioElement | null>(null);
+        
+          const togglePlay = () => {
+            if (audioRef.current) {
+              if (isPlaying) {
+                audioRef.current.pause();
+              } else {
+                audioRef.current.play();
+              }
+              setIsPlaying(!isPlaying);
+            }
+          };
+        
+          const skip = (seconds: number) => {
+            if (audioRef.current) {
+              audioRef.current.currentTime += seconds;
+            }
+          };
+        
+          const handleTimeUpdate = () => {
+            if (audioRef.current) {
+              setCurrentTime(audioRef.current.currentTime);
+            }
+          };
+        
+          const handleLoadedMetadata = () => {
+            if (audioRef.current) {
+              setDuration(audioRef.current.duration);
+            }
+          };
+        
+          const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const time = Number(e.target.value);
+            if (audioRef.current) {
+              audioRef.current.currentTime = time;
+              setCurrentTime(time);
+            }
+          };
+        
+          const formatTime = (time: number) => {
+            const minutes = Math.floor(time / 60);
+            const seconds = Math.floor(time % 60);
+            return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+          };
+        
+          return (
+            <div className="rounded-xl bg-white/5 p-6 border border-white/10 space-y-6">
+              <div className="text-center space-y-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-cyan-400">Аудиоподкаст</p>
+                <p className="text-xl font-semibold text-white">{data.title}</p>
+              </div>
+        
+              <div className="flex items-center justify-center">
+                <div className="h-32 w-32 rounded-full bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_30px_rgba(6,182,212,0.15)]">
+                   <span className="text-4xl">🎙️</span>
+                </div>
+              </div>
+        
+              <audio
+                ref={audioRef}
+                src={data.audioUrl}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                onEnded={() => setIsPlaying(false)}
+              />
+        
+              <div className="space-y-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={duration}
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-300"
+                />
+                <div className="flex justify-between text-xs text-slate-400 font-mono">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+              </div>
+        
+              <div className="flex items-center justify-center gap-6">
+                <button onClick={() => skip(-15)} className="text-slate-400 hover:text-white transition" title="-15s">
+                  ↺ 15s
+                </button>
+                
+                <button
+                  onClick={togglePlay}
+                  className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-900 hover:bg-cyan-50 transition shadow-lg hover:shadow-cyan-500/20 hover:scale-105"
+                >
+                  {isPlaying ? (
+                    <span className="text-2xl">⏸</span>
+                  ) : (
+                    <span className="ml-1 text-2xl">▶</span>
+                  )}
+                </button>
+        
+                <button onClick={() => skip(15)} className="text-slate-400 hover:text-white transition" title="+15s">
+                  15s ↻
+                </button>
+              </div>
+            </div>
+          );
+        }
+                
+        
 
 function VideoView({ data }: { data: VideoSpec }) {
   const [currentSceneIdx, setCurrentSceneIdx] = useState(0);

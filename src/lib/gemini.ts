@@ -38,7 +38,7 @@ export type StudioMode =
 const modeGuides: Record<StudioMode, string> = {
   chat: "Кратко ответь на вопрос, если нужно предложи дальнейшие шаги обучения.",
   audio:
-    "Сделай сценарий аудиопересказа на 3–5 минут. Добавь цепляющий зачин, 3–4 смысловых блока, плавные переходы и финальный вывод.",
+    "Role: You are an expert podcast producer and scriptwriter. Task: Create a 'Deep Dive' audio script strictly based on source documents. Characters: Host A (Guide, knowledgeable) and Host B (Color, curious). Guidelines: 1. LANGUAGE: STRICTLY RUSSIAN (Русский). 2. LENGTH: CRITICAL. Generate a 10-MINUTE SCRIPT (approx 2000 words). Do not summarize; go deep. 3. Style: Natural conversation, contractions, interjections. 4. Structure: Hook -> Deep Dive Body (explore nuances, give examples, debate points) -> Conclusion. IMPORTANT: RETURN ONLY JSON. Format: {\"title\":\"Podcast Title\",\"dialogue\":[{\"speaker\":\"Host A\",\"text\":\"...\"},{\"speaker\":\"Host B\",\"text\":\"...\"}]}. Generate at least 60-80 detailed exchanges.",
   video:
     "Role: You are an expert Instructional Designer and Virtual Lecturer. Task: Create a script for a 'Video Learning Guide' (slides + voiceover). Audience: Students/professionals. Guidelines: 1. Structure: Title -> Agenda -> Body (1 concept/slide) -> Summary. 2. Visual Instructions: Explicitly design the slide. Format: 'HEADER: [Text] | BULLETS: [3-4 points] | GRAPHIC: [Chart/Diagram description]'. Keep text minimal. 3. Audio: Clear, professional. Do NOT just read bullets; explain context. Fidelity: Only use source concepts. IMPORTANT: RETURN ONLY JSON. Format: {\"title\":\"...\",\"scenes\":[{\"headline\":\"Slide Title (Russian, concise, max 7 words)\",\"text\":\"Narration text (Russian)...\",\"visual\":\"Slide description (Russian) using HEADER | BULLETS | GRAPHIC format...\"}]}. Generate 8-12 scenes.",
   mindmap:
@@ -135,13 +135,14 @@ export async function generateImage(prompt: string): Promise<string> {
     }
 
     return part.inlineData.data;
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Unknown error";
     console.error("Gemini Image Gen Error:", e);
-    throw new Error(`Gemini Image Gen Failed: ${e.message}`);
+    throw new Error(`Gemini Image Gen Failed: ${message}`);
   }
 }
 
-function createWavHeader(dataLength: number, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
+export function createWavHeader(dataLength: number, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
   const buffer = new ArrayBuffer(44);
   const view = new DataView(buffer);
 
@@ -173,12 +174,89 @@ function writeString(view: DataView, offset: number, string: string) {
   }
 }
 
-export async function generateSpeech(text: string): Promise<ArrayBuffer> {
+export async function generateMultiSpeakerSpeech(dialogue: { speaker: string; text: string }[]): Promise<ArrayBuffer> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error("GOOGLE_API_KEY не задан");
+
+  const model = "gemini-2.5-pro-preview-tts";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  // 1. Construct the script string
+  const scriptText = dialogue.map(line => `${line.speaker}: ${line.text}`).join("\n");
+
+  // 2. Construct the request payload
+  const payload = {
+    contents: [{ parts: [{ text: scriptText }] }],
+    generationConfig: {
+      response_modalities: ["AUDIO"],
+      speechConfig: {
+        multiSpeakerVoiceConfig: {
+          speakerVoiceConfigs: [
+            {
+              speaker: "Host A",
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: "Charon" } }
+            },
+            {
+              speaker: "Host B",
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } }
+            }
+          ]
+        }
+      }
+    }
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini TTS API Error: ${response.status} ${errText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.candidates || data.candidates.length === 0) {
+      throw new Error("No candidates returned");
+    }
+
+    const part = data.candidates[0].content.parts[0];
+    if (!part || !part.inlineData || !part.inlineData.data) {
+        throw new Error("No audio data in response");
+    }
+
+    // Convert base64 to Uint8Array (Raw PCM)
+    const binaryString = atob(part.inlineData.data);
+    const len = binaryString.length;
+    const pcmBytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        pcmBytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // Add WAV Header
+    const header = createWavHeader(len);
+    const wavBuffer = new Uint8Array(header.byteLength + len);
+    wavBuffer.set(new Uint8Array(header), 0);
+    wavBuffer.set(pcmBytes, header.byteLength);
+
+    return wavBuffer.buffer;
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    console.error("Gemini Multi-Speaker TTS Error:", e);
+    throw new Error(`Gemini Multi-Speaker TTS Failed: ${message}`);
+  }
+}
+
+export async function generateSpeech(text: string, voiceName: string = "Charon"): Promise<ArrayBuffer> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_API_KEY не задан");
 
   // Correct model ID from documentation
-  const model = "gemini-2.5-flash-preview-tts";
+  const model = "gemini-2.5-pro-preview-tts";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   try {
@@ -192,7 +270,7 @@ export async function generateSpeech(text: string): Promise<ArrayBuffer> {
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: "Charon" // Changed to Charon
+                voiceName: voiceName
               }
             }
           }
@@ -231,8 +309,9 @@ export async function generateSpeech(text: string): Promise<ArrayBuffer> {
     wavBuffer.set(pcmBytes, header.byteLength);
 
     return wavBuffer.buffer;
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Unknown error";
     console.error("Gemini Speech Gen Error:", e);
-    throw new Error(`Gemini Speech Gen Failed: ${e.message}`);
+    throw new Error(`Gemini Speech Gen Failed: ${message}`);
   }
 }
