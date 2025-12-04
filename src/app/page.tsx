@@ -464,25 +464,25 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white hover:border-white/20"
+                  className="glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white hover:-translate-y-[1px]"
                 >
                   📂 Файл
                 </button>
                 <button
                   onClick={() => setActiveTab(activeTab === "link" ? null : "link")}
-                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "link" && "border-cyan-300/50 text-cyan-100")}
+                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white hover:-translate-y-[1px]", activeTab === "link" && "border-cyan-300/50 text-cyan-100")}
                 >
                   🔗 Ссылка
                 </button>
                 <button
                   onClick={() => setActiveTab(activeTab === "youtube" ? null : "youtube")}
-                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "youtube" && "border-cyan-300/50 text-cyan-100")}
+                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white hover:-translate-y-[1px]", activeTab === "youtube" && "border-cyan-300/50 text-cyan-100")}
                 >
                   ▶️ YouTube
                 </button>
                 <button
                   onClick={() => setActiveTab(activeTab === "text" ? null : "text")}
-                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "text" && "border-cyan-300/50 text-cyan-100")}
+                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white hover:-translate-y-[1px]", activeTab === "text" && "border-cyan-300/50 text-cyan-100")}
                 >
                   📝 Текст
                 </button>
@@ -546,11 +546,11 @@ export default function Home() {
                   <button
                     key={src.id}
                     onClick={() => toggleSource(src.id)}
-                    className={cx(
-                      "w-full rounded-xl px-3 py-2 text-left glass border border-transparent transition",
-                      selectedSources.includes(src.id) && "border-cyan-300/50 shadow-[0_0_0_1px_rgba(103,232,249,0.2)]"
-                    )}
-                  >
+                  className={cx(
+                    "w-full rounded-xl px-3 py-2 text-left glass border border-transparent transition hover:-translate-y-[1px]",
+                    selectedSources.includes(src.id) && "border-cyan-300/50 shadow-[0_0_0_1px_rgba(103,232,249,0.2)]"
+                  )}
+                >
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-lg">{src.type === "file" ? "📄" : src.type === "link" ? "🌐" : src.type === "youtube" ? "🎬" : "📝"}</div>
                       <div className="space-y-1">
@@ -635,7 +635,7 @@ export default function Home() {
                 <button
                   key={card.key}
                   onClick={() => runStudio(card.key)}
-                  className="relative overflow-hidden rounded-lg border border-white/10 px-3 py-2 text-left glass"
+                  className="relative overflow-hidden rounded-lg border border-white/10 px-3 py-2 text-left glass hover:-translate-y-[1px]"
                 >
                   <div className={cx("absolute inset-0 blur-2xl opacity-70", `bg-gradient-to-br ${card.gradient}`)} />
                   <div className="relative">
@@ -645,7 +645,7 @@ export default function Home() {
               ))}
             </div>
             <div className="glass mt-2 rounded-2xl border border-white/10 p-3 min-h-[140px] space-y-2">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Результаты</p>
+              {/* <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Результаты</p> */}
               {studioResults.length === 0 && (
                 <p className="text-sm text-slate-400">Нажмите на карточку, чтобы сгенерировать результат.</p>
               )}
@@ -690,7 +690,7 @@ export default function Home() {
                       setModalOpen(true);
                     }}
                     className={cx(
-                      "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left transition",
+                      "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left transition hover:-translate-y-[1px]",
                       item.status === "loading" && "opacity-70",
                       "hover:border-cyan-300/50"
                     )}

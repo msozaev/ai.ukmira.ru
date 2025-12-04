@@ -178,13 +178,11 @@ export async function generateMultiSpeakerSpeech(dialogue: { speaker: string; te
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_API_KEY не задан");
 
-  const model = "gemini-2.5-pro-preview-tts";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const models = ["gemini-2.5-pro-preview-tts", "gemini-2.5-flash-preview-tts"];
+  let lastError: Error | null = null;
 
-  // 1. Construct the script string
+  // 1. Construct the script string and payload ONCE
   const scriptText = dialogue.map(line => `${line.speaker}: ${line.text}`).join("\n");
-
-  // 2. Construct the request payload
   const payload = {
     contents: [{ parts: [{ text: scriptText }] }],
     generationConfig: {
@@ -206,49 +204,60 @@ export async function generateMultiSpeakerSpeech(dialogue: { speaker: string; te
     }
   };
 
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+  // Try models in sequence (Pro -> Flash)
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      console.log(`Attempting TTS with model: ${model}`);
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Gemini TTS API Error: ${response.status} ${errText}`);
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Gemini TTS API Error (${model}): ${response.status} ${errText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.candidates || data.candidates.length === 0) {
+        throw new Error("No candidates returned");
+      }
+
+      const part = data.candidates[0].content.parts[0];
+      if (!part || !part.inlineData || !part.inlineData.data) {
+          throw new Error("No audio data in response");
+      }
+
+      // Success! Process and return buffer
+      const binaryString = atob(part.inlineData.data);
+      const len = binaryString.length;
+      const pcmBytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+          pcmBytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const header = createWavHeader(len);
+      const wavBuffer = new Uint8Array(header.byteLength + len);
+      wavBuffer.set(new Uint8Array(header), 0);
+      wavBuffer.set(pcmBytes, header.byteLength);
+
+      return wavBuffer.buffer;
+
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      console.warn(`TTS generation failed with ${model}, trying next... Error: ${message}`);
+      lastError = e instanceof Error ? e : new Error(message);
+      // Continue to next model in loop
     }
-
-    const data = await response.json();
-    
-    if (!data.candidates || data.candidates.length === 0) {
-      throw new Error("No candidates returned");
-    }
-
-    const part = data.candidates[0].content.parts[0];
-    if (!part || !part.inlineData || !part.inlineData.data) {
-        throw new Error("No audio data in response");
-    }
-
-    // Convert base64 to Uint8Array (Raw PCM)
-    const binaryString = atob(part.inlineData.data);
-    const len = binaryString.length;
-    const pcmBytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        pcmBytes[i] = binaryString.charCodeAt(i);
-    }
-
-    // Add WAV Header
-    const header = createWavHeader(len);
-    const wavBuffer = new Uint8Array(header.byteLength + len);
-    wavBuffer.set(new Uint8Array(header), 0);
-    wavBuffer.set(pcmBytes, header.byteLength);
-
-    return wavBuffer.buffer;
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "Unknown error";
-    console.error("Gemini Multi-Speaker TTS Error:", e);
-    throw new Error(`Gemini Multi-Speaker TTS Failed: ${message}`);
   }
+
+  // If we exhaust all models
+  console.error("Gemini Multi-Speaker TTS Error: All models failed.");
+  throw new Error(`Gemini Multi-Speaker TTS Failed: ${lastError?.message}`);
 }
 
 export async function generateSpeech(text: string, voiceName: string = "Charon"): Promise<ArrayBuffer> {
