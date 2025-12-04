@@ -17,6 +17,7 @@ export type Source = {
   type: "file" | "link" | "youtube" | "text";
   content: string;
   url?: string;
+  summary?: string;
 };
 
 export type ChatMessage = {
@@ -46,13 +47,13 @@ const modeGuides: Record<StudioMode, string> = {
   report:
     "Сформируй аналитический отчёт: цель, ключевые выводы, аргументы, риски/ограничения, рекомендации, список действий.",
   flashcards:
-    "Сделай 8–12 двусторонних карточек в формате 'Вопрос — Ответ'. Коротко, по одному факту, без лишнего текста.",
+    "Верни ТОЛЬКО JSON без пояснений. Формат: {\"title\":\"...\",\"cards\":[{\"front\":\"Question or Term\",\"back\":\"Answer or Definition\"}]}. 10-15 карточек.",
   quiz:
     "Сделай мини-тест из 8–10 вопросов смешанных типов (множественный выбор + открытый). Добавь правильные ответы после списка.",
   infographic:
     "Верни ТОЛЬКО JSON без пояснений. Формат: {\"title\":\"...\",\"blocks\":[{\"title\":\"...\",\"content\":\"...\"}],\"takeaway\":\"...\"}. 3-5 блоков. Без markdown, без текста вне JSON.",
   slides:
-    "Верни ТОЛЬКО JSON без пояснений. Формат: {\"title\":\"...\",\"slides\":[{\"title\":\"...\",\"bullets\":[\"...\"]}]}. 8-12 слайдов, 3-5 bullets каждый. Без markdown, без текста вне JSON.",
+    "Верни ТОЛЬКО JSON без пояснений. Создай подробную презентацию для глубокого изучения темы. Формат: {\"title\":\"...\",\"slides\":[{\"title\":\"...\",\"bullets\":[\"...detailed point 1...\",\"...detailed point 2...\",\"...detailed point 3...\",\"...detailed point 4...\",\"...detailed point 5...\"]}]}. 10-15 насыщенных слайдов. Каждый bullet должен быть развёрнутым предложением с фактами, цифрами или объяснениями из источника. Избегай общих фраз.",
 };
 
 function trimSources(sources: Source[], limit = 18000) {
@@ -117,7 +118,7 @@ export async function generateImage(prompt: string): Promise<string> {
 
   try {
     const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: "Generate an image: " + prompt }] }],
+      contents: [{ role: "user", parts: [{ text: "Generate an image, wide landscape aspect ratio 16:9: " + prompt }] }],
     });
 
     const response = result.response;
@@ -139,6 +140,24 @@ export async function generateImage(prompt: string): Promise<string> {
     const message = e instanceof Error ? e.message : "Unknown error";
     console.error("Gemini Image Gen Error:", e);
     throw new Error(`Gemini Image Gen Failed: ${message}`);
+  }
+}
+
+export async function generateSummary(text: string): Promise<string> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) return ""; // Fail silently if no key
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+
+  try {
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: "Summarize this text in 4-6 sentences in Russian, concisely and informatively. DO NOT use introductory phrases like 'Вот краткое изложение текста':\n\n" + text.slice(0, 10000) }] }],
+    });
+    return result.response.text();
+  } catch (e) {
+    console.error("Summary Gen Error:", e);
+    return "";
   }
 }
 

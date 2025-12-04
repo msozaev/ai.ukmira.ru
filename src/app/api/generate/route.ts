@@ -102,6 +102,56 @@ export async function POST(req: NextRequest) {
         });
     }
 
+    if (body.mode === "slides") {
+        const resultRaw = await runGemini({
+            mode: body.mode,
+            prompt: body.prompt,
+            sources: body.sources || [],
+            history: body.history || [],
+        });
+
+        const cleanedJson = resultRaw.replace(/```json|```/gi, "").trim();
+        let slidesData;
+        try {
+            slidesData = JSON.parse(cleanedJson);
+        } catch (e) {
+            console.error("JSON Parse Error", e);
+            return NextResponse.json({ text: resultRaw });
+        }
+
+        if (!slidesData?.slides || !Array.isArray(slidesData.slides)) {
+            return NextResponse.json({ text: resultRaw });
+        }
+
+        // Generate visuals for each slide in parallel
+        const slidesWithVisuals = await Promise.all(
+            slidesData.slides.map(async (slide: { title: string; bullets: string[] }) => {
+                try {
+                    // Create a rich visual prompt for the slide
+                    const visualPrompt = `Create a professional presentation slide.
+                    Title: "${slide.title}"
+                    Key concepts: ${slide.bullets.slice(0, 3).join(", ")}.
+                    Style: Modern, corporate, clean, white background, high legibility, infographic style elements.
+                    IMPORTANT: The slide should visually represent these concepts. If text is rendered, it must be the title in Russian Cyrillic.`;
+                    
+                    const img = await generateImage(visualPrompt);
+                    return { ...slide, image: img };
+                } catch (e) {
+                    console.error("Slide Image Gen Error", e);
+                    return { ...slide, image: null };
+                }
+            })
+        );
+
+        return NextResponse.json({
+            slides: {
+                title: slidesData.title || "Презентация",
+                slides: slidesWithVisuals
+            },
+            text: "Презентация готова."
+        });
+    }
+
     if (body.mode === "video") {
       const scriptRaw = await runGemini({
         mode: body.mode,

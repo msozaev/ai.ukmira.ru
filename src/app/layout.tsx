@@ -15,8 +15,8 @@ const jbMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Miraverse | AI Tutor",
-  description: "Индивидуальный тьютор",
+  title: "Miraverse | Ваш личный ИИ Репетитор",
+  description: "Miraverse | Ваш личный ИИ Репетитор",
 };
 
 export default function RootLayout({

@@ -14,12 +14,18 @@ type StudioCard = {
   gradient: string;
 };
 
-type ParsedQuiz = { quiz?: QuizQuestion[]; message: string };
+type ParsedQuiz = {
+  quiz?: QuizQuestion[];
+  message: string;
+};
 
 type InfographicSpec = { title: string; blocks: { title: string; content: string }[]; takeaway?: string };
-type SlidesSpec = { title: string; slides: { title: string; bullets: string[] }[] };
+type SlidesSpec = { title: string; slides: { title: string; bullets: string[]; image?: string | null }[] };
 type VideoSpec = { title: string; scenes: { text: string; visual: string; image?: string | null; audio?: string | null }[] };
-type AudioSpec = { title: string; audioUrl: string };
+type AudioSpec = {
+  title: string;
+  audioUrl: string;
+};
 
 function extractQuiz(raw: string): ParsedQuiz {
   const codeBlockMatch = raw.match(/```json([\s\S]*?)```/i);
@@ -31,17 +37,26 @@ function extractQuiz(raw: string): ParsedQuiz {
   })();
 
   const parseQuestionsArray = (parsed: unknown) => {
-    const obj = parsed as { questions?: unknown };
+    const obj = parsed as {
+      questions?: unknown;
+    };
     if (Array.isArray(obj.questions)) {
       const quiz = obj.questions
         .filter(
-          (q: { question: unknown; options: unknown[] }) =>
+          (q: {
+            question: unknown;
+            options: unknown[];
+          }) =>
             typeof q?.question === "string" &&
             Array.isArray(q?.options) &&
             q.options.length === 4 &&
             q.options.every((o) => typeof o === "string")
         )
-        .map((q: { question: string; options: string[]; answer?: number }) => ({
+        .map((q: {
+          question: string;
+          options: string[];
+          answer?: number;
+        }) => ({
           question: q.question,
           options: q.options,
           answer: Number(q.answer ?? 0),
@@ -72,7 +87,7 @@ function extractQuiz(raw: string): ParsedQuiz {
       const parsed = JSON.parse(candidate);
       const quiz = parseQuestionsArray(parsed);
       if (quiz) return { quiz, message: "Тест готов. Нажмите, чтобы пройти." };
-    } catch { }
+    } catch {} 
   }
 
   // Fallback: parse markdown-like MCQ
@@ -86,14 +101,18 @@ function extractQuiz(raw: string): ParsedQuiz {
   const quiz: QuizQuestion[] = [];
   let current: QuizQuestion | null = null;
 
-  const optionRegex = /^[-*]?\s*[A-DА-Га-г][).\]]\s*(.+)$/i;
+  const optionRegex = /^[-*]?\s*[A-DА-Га-г][).]\s*(.+)$/i;
   const questionRegex = /^\d+[).]\s+(.+)/;
 
   for (const line of cleanedLines) {
     const qMatch = line.match(questionRegex);
     if (qMatch) {
       if (current && current.options.length === 4) quiz.push(current);
-      current = { question: qMatch[1].trim(), options: [], answer: 0 };
+      current = {
+        question: qMatch[1].trim(),
+        options: [],
+        answer: 0,
+      };
       continue;
     }
     if (current) {
@@ -119,13 +138,23 @@ function parseInfographic(raw: string): InfographicSpec | null {
     const parsed = JSON.parse(cleaned);
     if (parsed?.title && Array.isArray(parsed?.blocks)) {
       const blocks = parsed.blocks
-        .filter((b: { title: unknown; content: unknown }) => typeof b?.title === "string" && typeof b?.content === "string")
-        .map((b: { title: string; content: string }) => ({ title: b.title, content: b.content }));
+        .filter((b: {
+          title: unknown;
+          content: unknown;
+        }) => typeof b?.title === "string" && typeof b?.content === "string")
+        .map((b: {
+          title: string;
+          content: string;
+        }) => ({ title: b.title, content: b.content }));
       if (blocks.length) {
-        return { title: String(parsed.title), blocks, takeaway: typeof parsed.takeaway === "string" ? parsed.takeaway : undefined };
+        return {
+          title: String(parsed.title),
+          blocks,
+          takeaway: typeof parsed.takeaway === "string" ? parsed.takeaway : undefined,
+        };
       }
     }
-  } catch { }
+  } catch {} 
   return null;
 }
 
@@ -135,15 +164,48 @@ function parseSlides(raw: string): SlidesSpec | null {
     const parsed = JSON.parse(cleaned);
     if (parsed?.title && Array.isArray(parsed?.slides)) {
       const slides = parsed.slides
-        .filter((s: { title: unknown; bullets: unknown[] }) => typeof s?.title === "string" && Array.isArray(s?.bullets))
-        .map((s: { title: string; bullets: unknown[] }) => ({
+        .filter((s: {
+          title: unknown;
+          bullets: unknown[];
+        }) => typeof s?.title === "string" && Array.isArray(s?.bullets))
+        .map((s: {
+          title: string;
+          bullets: unknown[];
+        }) => ({
           title: s.title,
           bullets: s.bullets.filter((b) => typeof b === "string") as string[],
         }))
-        .filter((s: { bullets: string[] }) => s.bullets.length);
+        .filter((s: {
+          bullets: string[];
+        }) => s.bullets.length);
       if (slides.length) return { title: String(parsed.title), slides };
     }
-  } catch { }
+  } catch {} 
+  return null;
+}
+
+type FlashcardsSpec = {
+  title: string;
+  cards: { front: string; back: string }[];
+};
+
+function parseFlashcards(raw: string): FlashcardsSpec | null {
+  try {
+    const cleaned = raw.replace(/```json|```/gi, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed?.cards)) {
+      const cards = parsed.cards
+        .filter((c: { front: unknown; back: unknown }) => typeof c?.front === "string" && typeof c?.back === "string")
+        .map((c: { front: string; back: string }) => ({ front: c.front, back: c.back }));
+      
+      if (cards.length) {
+        return {
+          title: typeof parsed.title === "string" ? parsed.title : "Карточки",
+          cards,
+        };
+      }
+    }
+  } catch {}
   return null;
 }
 
@@ -163,6 +225,7 @@ type StudioResult = {
   quiz?: QuizQuestion[];
   infographic?: InfographicSpec;
   slides?: SlidesSpec;
+  flashcards?: FlashcardsSpec;
   video?: VideoSpec;
   audioProject?: AudioSpec;
   image?: string;
@@ -202,12 +265,14 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [isChatLoading, setChatLoading] = useState(false);
   const [studioLoading, setStudioLoading] = useState<StudioMode | null>(null);
+  const [isProfileOpen, setProfileOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState<string>("");
   const [modalContent, setModalContent] = useState<string>("");
   const [modalQuiz, setModalQuiz] = useState<QuizQuestion[] | null>(null);
   const [modalInfographic, setModalInfographic] = useState<InfographicSpec | null>(null);
   const [modalSlides, setModalSlides] = useState<SlidesSpec | null>(null);
+  const [modalFlashcards, setModalFlashcards] = useState<FlashcardsSpec | null>(null);
   const [modalVideo, setModalVideo] = useState<VideoSpec | null>(null);
   const [modalAudio, setModalAudio] = useState<AudioSpec | null>(null);
   const [modalImage, setModalImage] = useState<string | null>(null);
@@ -236,6 +301,14 @@ export default function Home() {
     if (data?.sources) {
       setSources((prev) => [...prev, ...data.sources]);
       setSelectedSources((prev) => [...prev, ...data.sources.map((s: Source) => s.id)]);
+      data.sources.forEach((s: Source) => {
+        if (s.summary) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: s.summary! },
+          ]);
+        }
+      });
     }
   };
 
@@ -252,6 +325,12 @@ export default function Home() {
       setSelectedSources((prev) => [...prev, data.source.id]);
       setLinkUrl("");
       setActiveTab(null);
+      if (data.source.summary) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.source.summary! },
+        ]);
+      }
     }
   };
 
@@ -268,22 +347,49 @@ export default function Home() {
       setSelectedSources((prev) => [...prev, data.source.id]);
       setYtUrl("");
       setActiveTab(null);
+      if (data.source.summary) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.source.summary! },
+        ]);
+      }
     }
   };
 
-  const handleTextAdd = () => {
+  const handleTextAdd = async () => {
     if (!textSource.trim()) return;
+    
+    let summary = "";
+    try {
+        const res = await fetch("/api/summary", {
+            method: "POST",
+            body: JSON.stringify({ text: textSource }),
+            headers: { "Content-Type": "application/json" },
+        });
+        const data = await res.json();
+        if (data.summary) summary = data.summary;
+    } catch (e) {
+        console.error("Summary fetch failed", e);
+    }
+
     const source: Source = {
       id: uuid(),
       title: textTitle || "Текст",
       type: "text",
       content: textSource,
+      summary,
     };
     setSources((prev) => [...prev, source]);
     setSelectedSources((prev) => [...prev, source.id]);
     setTextSource("");
     setTextTitle("Свободный текст");
     setActiveTab(null);
+    if (source.summary) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: source.summary! },
+      ]);
+    }
   };
 
   const sendMessage = async (value?: string) => {
@@ -305,7 +411,10 @@ export default function Home() {
         }),
       });
       const data = await res.json();
-      const reply: ChatMessage = { role: "assistant", content: data.text || data.error || "Не удалось сгенерировать ответ" };
+      const reply: ChatMessage = {
+        role: "assistant",
+        content: data.text || data.error || "Не удалось сгенерировать ответ",
+      };
       setMessages((prev) => [...prev, reply]);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "неизвестно";
@@ -357,7 +466,8 @@ export default function Home() {
       let content = data.text ?? data.error ?? "Нет ответа";
       let quizPayload: QuizQuestion[] | undefined = undefined;
       let infographicPayload: InfographicSpec | undefined = undefined;
-      let slidesPayload: SlidesSpec | undefined = undefined;
+      let slidesPayload: SlidesSpec | undefined = data.slides; // Use data.slides if available
+      let flashcardsPayload: FlashcardsSpec | undefined = undefined;
       const videoPayload: VideoSpec | undefined = data.video;
       const audioPayload: AudioSpec | undefined = data.audioProject;
       const imagePayload: string | undefined = data.image;
@@ -382,10 +492,21 @@ export default function Home() {
           }
         }
       } else if (mode === "slides") {
-        const parsed = parseSlides(content);
+        if (slidesPayload) {
+             content = "Презентация готова. Нажмите, чтобы посмотреть.";
+        } else {
+            // Fallback to legacy parsing if API didn't return structured slides
+            const parsed = parseSlides(content);
+            if (parsed) {
+                slidesPayload = parsed;
+                content = "Презентация готова. Нажмите, чтобы посмотреть.";
+            }
+        }
+      } else if (mode === "flashcards") {
+        const parsed = parseFlashcards(content);
         if (parsed) {
-          slidesPayload = parsed;
-          content = "Презентация готова. Нажмите, чтобы посмотреть.";
+          flashcardsPayload = parsed;
+          content = "Карточки готовы. Нажмите, чтобы посмотреть.";
         }
       } else if (mode === "video" && videoPayload) {
         content = "Видео готово. Нажмите, чтобы посмотреть.";
@@ -402,6 +523,7 @@ export default function Home() {
                 quiz: quizPayload,
                 infographic: infographicPayload,
                 slides: slidesPayload,
+                flashcards: flashcardsPayload,
                 video: videoPayload,
                 audioProject: audioPayload,
                 image: imagePayload,
@@ -431,16 +553,24 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col px-3 pt-4 pb-4 sm:px-4 lg:px-6 xl:px-10">
       <div className="mx-auto flex w-full flex-1 flex-col gap-5 lg:gap-6">
-        <header className="flex items-center justify-between rounded-2xl glass px-4 py-2 shadow-lg">
+        <header className="flex items-center justify-between rounded-2xl glass px-4 py-2 shadow-lg no-hover-outline">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="MIRAVERSE" className="h-16 w-auto brightness-300 saturate-300" />
             <div>
-              <p className="text-sm text-slate-300">M I R A V E R S E </p>
-              <h1 className="text-lg font-semibold text-white">ИИ Репетитор</h1>
+              <p className="text-sm text-slate-300">ИИ Репетитор </p>
+              <h1 className="text-lg font-semibold text-white">M I R A V E R S E</h1>
             </div>
           </div>
           <div className="hidden items-center gap-3 text-sm text-slate-300 md:flex">
-
+            <button 
+              onClick={() => setProfileOpen(true)}
+              className="flex items-center gap-3 rounded-full glass px-3 py-1.5 hover:bg-white/10 transition border border-transparent hover:border-white/10"
+            >
+              <span className="font-semibold text-white text-sm">Александр Волков</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-blue-500 text-xs font-bold text-white shadow-lg border border-white/20">
+                АВ
+              </div>
+            </button>
           </div>
         </header>
 
@@ -464,25 +594,25 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white hover:-translate-y-[1px]"
+                  className="glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white"
                 >
                   📂 Файл
                 </button>
                 <button
                   onClick={() => setActiveTab(activeTab === "link" ? null : "link")}
-                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white hover:-translate-y-[1px]", activeTab === "link" && "border-cyan-300/50 text-cyan-100")}
+                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "link" && "border-cyan-300/50 text-cyan-100")}
                 >
                   🔗 Ссылка
                 </button>
                 <button
                   onClick={() => setActiveTab(activeTab === "youtube" ? null : "youtube")}
-                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white hover:-translate-y-[1px]", activeTab === "youtube" && "border-cyan-300/50 text-cyan-100")}
+                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "youtube" && "border-cyan-300/50 text-cyan-100")}
                 >
                   ▶️ YouTube
                 </button>
                 <button
                   onClick={() => setActiveTab(activeTab === "text" ? null : "text")}
-                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white hover:-translate-y-[1px]", activeTab === "text" && "border-cyan-300/50 text-cyan-100")}
+                  className={cx("glass flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white", activeTab === "text" && "border-cyan-300/50 text-cyan-100")}
                 >
                   📝 Текст
                 </button>
@@ -546,11 +676,11 @@ export default function Home() {
                   <button
                     key={src.id}
                     onClick={() => toggleSource(src.id)}
-                  className={cx(
-                    "w-full rounded-xl px-3 py-2 text-left glass border border-transparent transition hover:-translate-y-[1px]",
-                    selectedSources.includes(src.id) && "border-cyan-300/50 shadow-[0_0_0_1px_rgba(103,232,249,0.2)]"
-                  )}
-                >
+                    className={cx(
+                      "w-full rounded-xl px-3 py-2 text-left glass border border-transparent transition",
+                      selectedSources.includes(src.id) && "border-cyan-300/50 shadow-[0_0_0_1px_rgba(103,232,249,0.2)]"
+                    )}
+                  >
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 text-lg">{src.type === "file" ? "📄" : src.type === "link" ? "🌐" : src.type === "youtube" ? "🎬" : "📝"}</div>
                       <div className="space-y-1">
@@ -578,7 +708,13 @@ export default function Home() {
 
             <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1">
               {messages.map((m, idx) => (
-                <div key={idx} className={cx("rounded-2xl px-3 py-2 max-w-3xl", m.role === "assistant" ? "bg-white/5" : "bg-cyan-500/20 border border-cyan-300/30 ml-auto")}>
+                <div
+                  key={idx}
+                  className={cx(
+                    "rounded-2xl px-3 py-2 max-w-3xl transition border border-transparent hover:border-blue-300/60 hover:shadow-[0_0_0_1px_rgba(96,165,250,0.35)]",
+                    m.role === "assistant" ? "bg-white/5" : "bg-cyan-500/20 border border-cyan-300/30 ml-auto"
+                  )}
+                > 
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-1">{m.role === "assistant" ? "Miraverse" : "Вы"}</p>
                   <div
                     className="text-sm leading-relaxed text-slate-100 space-y-2"
@@ -627,7 +763,6 @@ export default function Home() {
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Студия</p>
                 <h2 className="text-xl font-semibold text-white">Автогенерация</h2>
               </div>
-              <span className="text-xs text-slate-400">Выбрано: {availableSources.length}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -635,7 +770,7 @@ export default function Home() {
                 <button
                   key={card.key}
                   onClick={() => runStudio(card.key)}
-                  className="relative overflow-hidden rounded-lg border border-white/10 px-3 py-2 text-left glass hover:-translate-y-[1px]"
+                  className="relative overflow-hidden rounded-lg border border-white/10 px-3 py-2 text-left glass"
                 >
                   <div className={cx("absolute inset-0 blur-2xl opacity-70", `bg-gradient-to-br ${card.gradient}`)} />
                   <div className="relative">
@@ -660,6 +795,7 @@ export default function Home() {
                       let parsedContent = item.content;
                       let parsedInfographic = item.infographic;
                       let parsedSlides = item.slides;
+                      let parsedFlashcards = item.flashcards;
                       const parsedVideo = item.video;
                       const parsedAudio = item.audioProject;
 
@@ -679,18 +815,24 @@ export default function Home() {
                         if (parsedSlides) parsedContent = "Презентация готова. Нажмите, чтобы посмотреть.";
                       }
 
+                      if (!parsedFlashcards && item.mode === "flashcards") {
+                        parsedFlashcards = parseFlashcards(item.content) ?? undefined;
+                        if (parsedFlashcards) parsedContent = "Карточки готовы. Нажмите, чтобы посмотреть.";
+                      }
+
                       setModalTitle(item.title);
                       setModalContent(parsedContent);
                       setModalQuiz(parsedQuiz ? parsedQuiz.map((q) => ({ ...q })) : null);
                       setModalInfographic(parsedInfographic ?? null);
                       setModalSlides(parsedSlides ?? null);
+                      setModalFlashcards(parsedFlashcards ?? null);
                       setModalVideo(parsedVideo ?? null);
                       setModalAudio(parsedAudio ?? null);
                       setModalImage(item.image ?? null);
                       setModalOpen(true);
                     }}
                     className={cx(
-                      "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left transition hover:-translate-y-[1px]",
+                      "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left transition",
                       item.status === "loading" && "opacity-70",
                       "hover:border-cyan-300/50"
                     )}
@@ -717,9 +859,31 @@ export default function Home() {
         </div>
       </div>
 
+      {isProfileOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-6xl rounded-2xl bg-slate-900/95 border border-white/10 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4 bg-white/5">
+              <div className="flex items-center gap-3">
+                 <span className="text-xl">🎓</span>
+                 <p className="text-sm uppercase tracking-[0.2em] text-slate-300">Паспорт компетенций</p>
+              </div>
+              <button
+                onClick={() => setProfileOpen(false)}
+                className="text-slate-300 hover:text-white p-2 hover:bg-white/10 rounded-lg transition"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="max-h-[85vh] overflow-y-auto px-6 py-6 bg-[#020617]">
+              <SkillsPassportView />
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="relative w-full max-w-3xl rounded-2xl bg-slate-900/90 border border-white/10 shadow-2xl">
+          <div className={cx("relative w-full rounded-2xl bg-slate-900/90 border border-white/10 shadow-2xl", (modalImage || modalSlides || modalVideo) ? "max-w-7xl" : "max-w-3xl")}>
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
               <p className="text-sm uppercase tracking-[0.2em] text-slate-300">{modalTitle || "Результат"}</p>
               <button
@@ -729,7 +893,7 @@ export default function Home() {
                 ✕
               </button>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto px-4 py-4 space-y-3 text-[15px] leading-relaxed">
+            <div className="max-h-[85vh] overflow-y-auto px-4 py-4 space-y-3 text-[15px] leading-relaxed">
               {studioLoading ? (
                 <p className="text-base text-slate-200">Генерация...</p>
               ) : modalQuiz ? (
@@ -738,13 +902,15 @@ export default function Home() {
                 <InfographicView data={modalInfographic} />
               ) : modalSlides ? (
                 <SlidesView data={modalSlides} />
+              ) : modalFlashcards ? (
+                <FlashcardsView data={modalFlashcards} />
               ) : modalVideo ? (
                 <VideoView data={modalVideo} />
               ) : modalAudio ? (
                 <AudioPlayerView data={modalAudio} />
               ) : modalImage ? (
                 <div className="flex justify-center">
-                  <img src={`data:image/jpeg;base64,${modalImage}`} alt="Infographic" className="rounded-xl max-w-full h-auto" />
+                  <img src={`data:image/jpeg;base64,${modalImage}`} alt="Infographic" className="rounded-xl max-w-full h-auto object-contain max-h-[75vh]" />
                 </div>
               ) : (
                 <div
@@ -880,134 +1046,296 @@ function InfographicView({ data }: { data: InfographicSpec }) {
 }
 
 function SlidesView({ data }: { data: SlidesSpec }) {
+  const [currentSlideIdx, setCurrentSlideIdx] = useState(0);
+
+  const nextSlide = () => {
+    setCurrentSlideIdx((prev) => Math.min(data.slides.length - 1, prev + 1));
+  };
+
+  const prevSlide = () => {
+    setCurrentSlideIdx((prev) => Math.max(0, prev - 1));
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") nextSlide();
+      if (e.key === "ArrowLeft") prevSlide();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.slides.length]);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  const currentSlide = data.slides[currentSlideIdx];
+
   return (
-    <div className="space-y-4">
-      <p className="text-lg font-semibold text-white">{data.title}</p>
-      <div className="space-y-3">
-        {data.slides.map((s, i) => (
-          <div key={i} className="rounded-xl border border-white/10 bg-white/5 p-3">
-            <p className="text-sm font-semibold text-white mb-2">Слайд {i + 1}: {s.title}</p>
-                        <ul className="list-disc pl-4 text-sm text-slate-200 space-y-1">
-                          {s.bullets.map((b, bi) => (
-                            <li key={bi}>{b}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            }        
-        function AudioPlayerView({ data }: { data: AudioSpec }) {
-          const [isPlaying, setIsPlaying] = useState(false);
-          const [currentTime, setCurrentTime] = useState(0);
-          const [duration, setDuration] = useState(0);
-          const audioRef = useRef<HTMLAudioElement | null>(null);
+    <div className="space-y-6">
+      <div className="text-center space-y-2">
+        <p className="text-xs font-bold uppercase tracking-widest text-cyan-400">Презентация</p>
+        <p className="text-xl font-semibold text-white">{data.title}</p>
+      </div>
+
+      <div ref={containerRef} className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-white/10 shadow-2xl group">
+        {currentSlide.image ? (
+          <img
+            src={`data:image/jpeg;base64,${currentSlide.image}`}
+            alt={currentSlide.title}
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-slate-800 p-10 text-center">
+            <p className="text-4xl">📊</p>
+            <h3 className="text-2xl font-bold text-white">{currentSlide.title}</h3>
+            <ul className="space-y-2 text-left">
+                {currentSlide.bullets.map((b, i) => (
+                    <li key={i} className="text-slate-300">• {b}</li>
+                ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Navigation Overlays */}
+        <button
+          onClick={prevSlide}
+          disabled={currentSlideIdx === 0}
+          className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-black/50 to-transparent opacity-0 hover:opacity-100 disabled:hidden transition flex items-center justify-start pl-4 text-white text-4xl"
+        >
+          ‹
+        </button>
+        <button
+          onClick={nextSlide}
+          disabled={currentSlideIdx === data.slides.length - 1}
+          className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-black/50 to-transparent opacity-0 hover:opacity-100 disabled:hidden transition flex items-center justify-end pr-4 text-white text-4xl"
+        >
+          ›
+        </button>
+
+        <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+            <span className="text-xs font-bold text-white">
+                {currentSlideIdx + 1} / {data.slides.length}
+            </span>
+        </div>
+
+        {/* Fullscreen Button */}
+        <button 
+            onClick={toggleFullscreen}
+            className="absolute top-2 right-2 p-2 rounded-lg bg-black/40 text-white opacity-0 group-hover:opacity-100 transition hover:bg-black/60 z-10"
+            title="На весь экран"
+        >
+            ⛶
+        </button>
+      </div>
+
+      <div className="flex justify-center gap-4">
+        <button
+            onClick={prevSlide}
+            disabled={currentSlideIdx === 0}
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white hover:bg-white/10 disabled:opacity-50"
+        >
+            Назад
+        </button>
+        <button
+            onClick={toggleFullscreen}
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-cyan-300 hover:bg-white/10 hover:text-cyan-200"
+        >
+            Развернуть
+        </button>
+        <button
+            onClick={nextSlide}
+            disabled={currentSlideIdx === data.slides.length - 1}
+            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-bold text-slate-900 hover:bg-cyan-400 disabled:opacity-50 border border-transparent"
+        >
+            Далее
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FlashcardsView({ data }: { data: FlashcardsSpec }) {
+  const [currentCardIdx, setCurrentCardIdx] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  const nextCard = () => {
+    setIsFlipped(false);
+    setTimeout(() => setCurrentCardIdx((prev) => Math.min(data.cards.length - 1, prev + 1)), 150);
+  };
+
+  const prevCard = () => {
+    setIsFlipped(false);
+    setTimeout(() => setCurrentCardIdx((prev) => Math.max(0, prev - 1)), 150);
+  };
+
+  const currentCard = data.cards[currentCardIdx];
+
+  return (
+    <div className="space-y-6 flex flex-col items-center">
+      <div className="text-center space-y-2">
+        <p className="text-xs font-bold uppercase tracking-widest text-pink-400">Карточки</p>
+        <p className="text-xl font-semibold text-white">{data.title}</p>
+      </div>
+
+      <div className="relative w-full max-w-md aspect-[3/2] perspective-1000 group cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
+        <div className={cx("relative w-full h-full transition-all duration-500 transform-style-3d shadow-2xl rounded-2xl", isFlipped && "rotate-y-180")}>
+          {/* Front */}
+          <div className="absolute inset-0 w-full h-full backface-hidden rounded-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex flex-col items-center justify-center p-6 text-center">
+            <span className="text-4xl mb-4">❓</span>
+            <p className="text-xl font-medium text-white">{currentCard.front}</p>
+            <p className="absolute bottom-4 text-xs text-slate-400 uppercase tracking-widest">Нажмите, чтобы узнать ответ</p>
+          </div>
+
+          {/* Back */}
+          <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex flex-col items-center justify-center p-6 text-center">
+             <span className="text-4xl mb-4">💡</span>
+             <p className="text-lg text-slate-100">{currentCard.back}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-6 text-white select-none">
+        <button
+          onClick={(e) => { e.stopPropagation(); prevCard(); }}
+          disabled={currentCardIdx === 0}
+          className="p-3 rounded-full bg-white/5 hover:bg-white/10 disabled:opacity-30 transition"
+        >
+          ←
+        </button>
+        <span className="font-mono text-sm text-slate-400">
+          {currentCardIdx + 1} / {data.cards.length}
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); nextCard(); }}
+          disabled={currentCardIdx === data.cards.length - 1}
+          className="p-3 rounded-full bg-white/5 hover:bg-white/10 disabled:opacity-30 transition"
+        >
+          →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AudioPlayerView({ data }: { data: AudioSpec }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const skip = (seconds: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime += seconds;
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = Number(e.target.value);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
+  };
+
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+  };
+
+  return (
+    <div className="rounded-xl bg-white/5 p-6 border border-white/10 space-y-6">
+      <div className="text-center space-y-2">
+        <p className="text-xs font-bold uppercase tracking-widest text-cyan-400">Аудиоподкаст</p>
+        <p className="text-xl font-semibold text-white">{data.title}</p>
+      </div>
+
+      <div className="flex items-center justify-center">
+        <div className="h-32 w-32 rounded-full bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_30px_rgba(6,182,212,0.15)]">
+           <span className="text-4xl">🎙️</span>
+        </div>
+      </div>
+
+      <audio
+        ref={audioRef}
+        src={data.audioUrl}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={() => setIsPlaying(false)}
+      />
+
+      <div className="space-y-2">
+        <input
+          type="range"
+          min={0}
+          max={duration}
+          value={currentTime}
+          onChange={handleSeek}
+          className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-300"
+        />
+        <div className="flex justify-between text-xs text-slate-400 font-mono">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-center gap-6">
+        <button onClick={() => skip(-15)} className="text-slate-400 hover:text-white transition" title="-15s">
+          ↺ 15s
+        </button>
         
-          const togglePlay = () => {
-            if (audioRef.current) {
-              if (isPlaying) {
-                audioRef.current.pause();
-              } else {
-                audioRef.current.play();
-              }
-              setIsPlaying(!isPlaying);
-            }
-          };
-        
-          const skip = (seconds: number) => {
-            if (audioRef.current) {
-              audioRef.current.currentTime += seconds;
-            }
-          };
-        
-          const handleTimeUpdate = () => {
-            if (audioRef.current) {
-              setCurrentTime(audioRef.current.currentTime);
-            }
-          };
-        
-          const handleLoadedMetadata = () => {
-            if (audioRef.current) {
-              setDuration(audioRef.current.duration);
-            }
-          };
-        
-          const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-            const time = Number(e.target.value);
-            if (audioRef.current) {
-              audioRef.current.currentTime = time;
-              setCurrentTime(time);
-            }
-          };
-        
-          const formatTime = (time: number) => {
-            const minutes = Math.floor(time / 60);
-            const seconds = Math.floor(time % 60);
-            return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
-          };
-        
-          return (
-            <div className="rounded-xl bg-white/5 p-6 border border-white/10 space-y-6">
-              <div className="text-center space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-cyan-400">Аудиоподкаст</p>
-                <p className="text-xl font-semibold text-white">{data.title}</p>
-              </div>
-        
-              <div className="flex items-center justify-center">
-                <div className="h-32 w-32 rounded-full bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_30px_rgba(6,182,212,0.15)]">
-                   <span className="text-4xl">🎙️</span>
-                </div>
-              </div>
-        
-              <audio
-                ref={audioRef}
-                src={data.audioUrl}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-                onEnded={() => setIsPlaying(false)}
-              />
-        
-              <div className="space-y-2">
-                <input
-                  type="range"
-                  min={0}
-                  max={duration}
-                  value={currentTime}
-                  onChange={handleSeek}
-                  className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-300"
-                />
-                <div className="flex justify-between text-xs text-slate-400 font-mono">
-                  <span>{formatTime(currentTime)}</span>
-                  <span>{formatTime(duration)}</span>
-                </div>
-              </div>
-        
-              <div className="flex items-center justify-center gap-6">
-                <button onClick={() => skip(-15)} className="text-slate-400 hover:text-white transition" title="-15s">
-                  ↺ 15s
-                </button>
-                
-                <button
-                  onClick={togglePlay}
-                  className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-900 hover:bg-cyan-50 transition shadow-lg hover:shadow-cyan-500/20 hover:scale-105"
-                >
-                  {isPlaying ? (
-                    <span className="text-2xl">⏸</span>
-                  ) : (
-                    <span className="ml-1 text-2xl">▶</span>
-                  )}
-                </button>
-        
-                <button onClick={() => skip(15)} className="text-slate-400 hover:text-white transition" title="+15s">
-                  15s ↻
-                </button>
-              </div>
-            </div>
-          );
-        }
-                
-        
+        <button
+          onClick={togglePlay}
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-900 hover:bg-cyan-50 transition shadow-lg hover:shadow-cyan-500/20 hover:scale-105"
+        >
+          {isPlaying ? (
+            <span className="text-2xl">⏸</span>
+          ) : (
+            <span className="ml-1 text-2xl">▶</span>
+          )}
+        </button>
+
+        <button onClick={() => skip(15)} className="text-slate-400 hover:text-white transition" title="+15s">
+          15s ↻
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function VideoView({ data }: { data: VideoSpec }) {
   const [currentSceneIdx, setCurrentSceneIdx] = useState(0);
@@ -1028,8 +1356,7 @@ function VideoView({ data }: { data: VideoSpec }) {
         audioRef.current = audio;
         audio.onended = handleSceneEnd;
         audio.play().catch(e => console.error("Play error", e));
-    } else {
-        // Fallback if audio generation failed on server
+    } else { // Fallback if audio generation failed on server
         console.warn("No audio for scene, falling back to silence/timer");
         setTimeout(handleSceneEnd, 3000); 
     }
@@ -1148,6 +1475,158 @@ function VideoView({ data }: { data: VideoSpec }) {
                   {s.text}
               </button>
           ))}
+      </div>
+    </div>
+  );
+}
+
+// Mock Data for Profile
+const MOCK_PROFILE = {
+  studentName: "Александр Волков",
+  overallLevel: "Middle Junior",
+  summary: "Студент 3-го курса направления «Бизнес-информатика». Демонстрирует высокие способности в моделировании процессов и анализе данных. Победитель студенческого хакатона 2024. Успешно завершил стажировку в финтех-секторе.",
+  categories: [
+    {
+      categoryName: "Hard Skills (Профессиональные)",
+      skills: [
+        { name: "BPMN / Моделирование процессов", score: 92, reasoning: "Отличные оценки по курсовым проектам, сертификат Business Studio." },
+        { name: "SQL & Управление данными", score: 78, reasoning: "Уверенное владение сложными запросами, опыт работы с PostgreSQL." },
+        { name: "Python для анализа данных", score: 65, reasoning: "Базовое использование Pandas/NumPy в учебных проектах." },
+        { name: "Системный анализ", score: 85, reasoning: "Высокая оценка за преддипломную практику." }
+      ]
+    },
+    {
+      categoryName: "Soft Skills (Гибкие навыки)",
+      skills: [
+        { name: "Командная работа", score: 88, reasoning: "Капитан команды на кейс-чемпионате Changellenge." },
+        { name: "Презентация решений", score: 90, reasoning: "Выступление на научной конференции с докладом." },
+        { name: "Критическое мышление", score: 75, reasoning: "Способность находить нестандартные решения в стрессовых ситуациях." }
+      ]
+    },
+    {
+      categoryName: "Инструментарий",
+      skills: [
+        { name: "Jira / Confluence", score: 80, reasoning: "Использование в рамках проектного семинара." },
+        { name: "Tableau / PowerBI", score: 70, reasoning: "Создание дашбордов для курсовой работы." },
+        { name: "Figma", score: 60, reasoning: "Прототипирование интерфейсов для MVP." }
+      ]
+    }
+  ],
+  recommendations: [
+    "Углубить знания Python (библиотеки Scikit-learn) для перехода к Data Science задачам.",
+    "Получить сертификацию начального уровня по управлению проектами (CAPM или PMP Junior).",
+    "Развивать навыки технического английского языка для чтения документации в оригинале."
+  ]
+};
+
+function SkillsPassportView() {
+  const passport = MOCK_PROFILE;
+  
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'bg-emerald-500';
+    if (score >= 75) return 'bg-teal-500';
+    if (score >= 60) return 'bg-indigo-500';
+    if (score >= 40) return 'bg-yellow-500';
+    return 'bg-rose-500';
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Top Bar simulating System Status */}
+      <div className="flex justify-between items-center bg-white/5 px-4 py-2 rounded-lg border border-white/10 text-xs text-slate-400">
+         <div className="flex items-center gap-2">
+           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+           <span>Соединение с базой данных ВУЗа: Активно</span>
+         </div>
+         <div>
+           Обновлено: {new Date().toLocaleDateString()}
+         </div>
+      </div>
+
+      {/* Header Card */}
+      <div className="glass rounded-3xl p-8 shadow-lg border border-white/10 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+          <svg className="w-80 h-80 text-cyan-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+        </div>
+        
+        <div className="relative z-10 w-28 h-28 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center text-white text-4xl font-bold shadow-xl border-4 border-white/10">
+          {passport.studentName.split(' ')[0][0]}{passport.studentName.split(' ')[1][0]}
+        </div>
+        
+        <div className="flex-1 text-center md:text-left relative z-10">
+          <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2 justify-center md:justify-start">
+            <h1 className="text-3xl font-bold text-white">{passport.studentName}</h1>
+            <span className="hidden md:inline text-slate-500">|</span>
+            <span className="text-cyan-300 font-semibold bg-cyan-900/30 px-3 py-1 rounded-full text-sm border border-cyan-500/30">Бизнес-информатика</span>
+          </div>
+          
+          <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-4">
+            <div className="inline-flex items-center px-3 py-1 bg-white/10 text-slate-200 rounded-lg text-xs font-bold uppercase tracking-wider border border-white/10">
+              Средний балл: 4.8
+            </div>
+            <div className="inline-flex items-center px-3 py-1 bg-indigo-500/20 text-indigo-200 rounded-lg text-xs font-bold uppercase tracking-wider border border-indigo-500/30">
+              Уровень: {passport.overallLevel}
+            </div>
+          </div>
+
+          <p className="text-slate-300 leading-relaxed bg-white/5 p-3 rounded-xl text-sm border border-white/10">
+            <span className="font-bold text-slate-100">Резюме системы:</span> {passport.summary}
+          </p>
+        </div>
+      </div>
+
+      {/* Categories Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {passport.categories.map((cat, idx) => (
+          <div key={idx} className="glass rounded-2xl p-6 border border-white/10 hover:border-cyan-500/30 transition-colors">
+            <h3 className="text-lg font-bold text-white mb-6 border-b border-white/10 pb-2 flex items-center justify-between">
+              {cat.categoryName.split('(')[0]}
+              <span className="text-xs font-normal text-slate-400">{cat.categoryName.split('(')[1]?.replace(')', '')}</span>
+            </h3>
+            <div className="space-y-6">
+              {cat.skills.map((skill, sIdx) => (
+                <div key={sIdx} className="group">
+                  <div className="flex justify-between items-end mb-2">
+                    <span className="text-sm font-semibold text-slate-200 group-hover:text-cyan-300 transition-colors">{skill.name}</span>
+                    <span className="text-xs font-bold text-slate-400 bg-white/5 px-2 py-0.5 rounded">{skill.score}/100</span>
+                  </div>
+                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden mb-2">
+                    <div 
+                      className={`h-full rounded-full ${getScoreColor(skill.score)} transition-all duration-1000 shadow-[0_0_10px_rgba(0,0,0,0.3)]`} 
+                      style={{ width: `${skill.score}%` }}
+                    ></div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                     <svg className="w-3 h-3 text-slate-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                     <p className="text-[11px] text-slate-500 italic leading-tight">{skill.reasoning}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* AI Recommendations */}
+      <div className="bg-gradient-to-r from-slate-900 to-slate-950 rounded-2xl p-8 text-white shadow-xl border border-white/10 relative overflow-hidden">
+         {/* Decorative bg elements */}
+         <div className="absolute top-0 right-0 -mr-10 -mt-10 w-40 h-40 bg-white opacity-5 rounded-full blur-2xl"></div>
+         <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-40 h-40 bg-teal-500 opacity-10 rounded-full blur-2xl"></div>
+
+         <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10">
+           <div className="p-2 bg-white/10 rounded-lg">
+              <svg className="w-6 h-6 text-teal-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+           </div>
+           Персональные рекомендации по развитию
+         </h3>
+         <div className="grid md:grid-cols-3 gap-6 relative z-10">
+           {passport.recommendations.map((rec, idx) => (
+             <div key={idx} className="bg-white/5 backdrop-blur-md p-5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
+               <div className="text-3xl font-bold text-teal-500/20 mb-2 absolute top-2 right-4">0{idx + 1}</div>
+               <p className="text-slate-200 text-sm leading-relaxed font-medium relative z-10">{rec}</p>
+             </div>
+           ))}
+         </div>
       </div>
     </div>
   );

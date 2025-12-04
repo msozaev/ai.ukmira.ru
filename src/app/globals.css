@@ -65,8 +65,18 @@ body {
 }
 
 .glass:hover {
-  border-color: rgba(94, 234, 212, 0.5);
-  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.25), 0 20px 60px rgba(0, 0, 0, 0.35);
+  border-color: rgba(96, 165, 250, 0.6);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.35), 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+.no-hover-outline:hover {
+  border-color: inherit !important;
+  box-shadow: inherit !important;
+}
+
+.no-hover-outline.glass:hover {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 50px rgba(0, 0, 0, 0.25) !important;
 }
 
 .dot-grid {
@@ -97,4 +107,19 @@ body {
     gap: 1.25rem;
     grid-template-columns: minmax(300px, 360px) minmax(0, 1fr) minmax(320px, 400px);
   }
+}
+
+/* 3D Flip Card Utilities */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
 }

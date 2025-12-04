@@ -4,7 +4,7 @@ import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mj
 // Explicit worker path to avoid Turbopack chunk lookup
 GlobalWorkerOptions.workerSrc = path.join(process.cwd(), "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs");
 import { v4 as uuid } from "uuid";
-import type { Source } from "@/lib/gemini";
+import { type Source, generateSummary } from "@/lib/gemini";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -49,11 +49,14 @@ export async function POST(req: NextRequest) {
         content = buffer.toString("utf-8");
       }
 
+      const summary = await generateSummary(content);
+
       sources.push({
         id: uuid(),
         title: file.name,
         type: "file",
         content,
+        summary,
       });
     }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { load } from "cheerio";
 import { v4 as uuid } from "uuid";
-import type { Source } from "@/lib/gemini";
+import { type Source, generateSummary } from "@/lib/gemini";
 
 export const runtime = "nodejs";
 export const maxDuration = 40;
@@ -20,12 +20,15 @@ export async function POST(req: NextRequest) {
     const text = $("body").text().replace(/\s+/g, " ").trim();
     const title = $("title").text().trim() || url;
 
+    const summary = await generateSummary(text);
+
     const source: Source = {
       id: uuid(),
       title,
       type: "link",
       url,
       content: text.slice(0, 20000),
+      summary,
     };
 
     return NextResponse.json({ source });
