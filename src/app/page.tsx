@@ -27,6 +27,31 @@ type AudioSpec = {
   audioUrl: string;
 };
 
+type JobDetails = {
+  title: string;
+  description: string;
+  requirements: string;
+};
+
+type StudyResource = {
+  title: string;
+  url: string;
+  type: 'video' | 'book' | 'article' | 'course';
+};
+
+type StudyTopic = {
+  name: string;
+  resources: StudyResource[];
+};
+
+type StudyPlanModule = {
+  week: number;
+  title: string;
+  description: string;
+  topics: StudyTopic[];
+  estimatedHours: number;
+};
+
 function extractQuiz(raw: string): ParsedQuiz {
   const codeBlockMatch = raw.match(/```json([\s\S]*?)```/i);
   const jsonCandidate = codeBlockMatch ? codeBlockMatch[1] : (() => {
@@ -266,6 +291,7 @@ export default function Home() {
   const [isChatLoading, setChatLoading] = useState(false);
   const [studioLoading, setStudioLoading] = useState<StudioMode | null>(null);
   const [isProfileOpen, setProfileOpen] = useState(false);
+  const [isCareerOpen, setCareerOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState<string>("");
   const [modalContent, setModalContent] = useState<string>("");
@@ -449,6 +475,8 @@ export default function Home() {
         "Верни ТОЛЬКО JSON без пояснений и текста. Формат: {\"questions\":[{\"question\":\"...\",\"options\":[\"вариант1\",\"вариант2\",\"вариант3\",\"вариант4\"],\"answer\":0}]}. 5-10 вопросов, options ровно 4, answer — индекс правильного (0-3). Без маркдауна, без троеточий, без текста вокруг.",
       infographic: "Опиши структуру инфографики и данные для неё.",
       slides: "Составь план презентации на 10 слайдов с заметками спикера.",
+      job_plan: "Создай учебный план.",
+      job_quiz: "Создай тест.",
     };
 
     try {
@@ -551,8 +579,8 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col px-3 pt-4 pb-4 sm:px-4 lg:px-6 xl:px-10">
-      <div className="mx-auto flex w-full flex-1 flex-col gap-5 lg:gap-6">
+    <div className="h-screen flex flex-col overflow-hidden px-3 pt-4 pb-4 sm:px-4 lg:px-6 xl:px-10">
+      <div className="mx-auto flex w-full flex-1 flex-col gap-5 lg:gap-6 min-h-0">
         <header className="flex items-center justify-between rounded-2xl glass px-4 py-2 shadow-lg no-hover-outline">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="MIRAVERSE" className="h-16 w-auto brightness-300 saturate-300" />
@@ -562,6 +590,13 @@ export default function Home() {
             </div>
           </div>
           <div className="hidden items-center gap-3 text-sm text-slate-300 md:flex">
+            <button
+              onClick={() => setCareerOpen(true)}
+              className="flex items-center gap-2 rounded-xl glass px-3 py-1.5 hover:bg-white/10 transition border border-transparent hover:border-white/10 text-slate-300 hover:text-white"
+            >
+              <span className="text-lg">💼</span>
+              <span className="text-sm font-medium">Карьера</span>
+            </button>
             <button 
               onClick={() => setProfileOpen(true)}
               className="flex items-center gap-3 rounded-full glass px-3 py-1.5 hover:bg-white/10 transition border border-transparent hover:border-white/10"
@@ -574,10 +609,10 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="layout-grid pb-4 flex-1 min-h-[75vh]">
+        <div className="layout-grid pb-4 flex-1 min-h-0">
           {/* Sidebar */}
-          <aside className="glass-strong dot-grid rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
+          <aside className="glass-strong dot-grid rounded-2xl p-4 h-full flex flex-col overflow-hidden min-h-0">
+            <div className="flex items-center justify-between mb-3 shrink-0">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Источники</p>
                 <h2 className="text-lg font-semibold text-white">Рабочая коллекция</h2>
@@ -668,7 +703,7 @@ export default function Home() {
                 onChange={(e) => handleFileUpload(e.target.files)}
               />
 
-              <div className="mt-3 space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+              <div className="mt-3 space-y-2 flex-1 overflow-y-auto min-h-0 pr-1">
                 {sources.length === 0 && (
                   <p className="text-sm text-slate-400">Добавьте PDF, ссылки, видео или текст, чтобы генерировать материалы.</p>
                 )}
@@ -695,7 +730,7 @@ export default function Home() {
           </aside>
 
           {/* Chat */}
-          <section className="glass-strong rounded-2xl p-4 flex flex-col h-full self-stretch">
+          <section className="glass-strong rounded-2xl p-4 flex flex-col h-full self-stretch min-h-0">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Чат</p>
@@ -757,8 +792,8 @@ export default function Home() {
           </section>
 
           {/* Studio */}
-          <aside className="glass-strong rounded-2xl p-4 space-y-3 h-full self-stretch">
-            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+          <aside className="glass-strong dot-grid rounded-2xl p-4 space-y-3 h-full self-stretch flex flex-col overflow-hidden min-h-0">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10 shrink-0">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Студия</p>
                 <h2 className="text-xl font-semibold text-white">Автогенерация</h2>
@@ -766,7 +801,7 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              {studioCards.map((card) => (
+              {studioCards.filter(card => card.key !== "mindmap" && card.key !== "report").map((card) => (
                 <button
                   key={card.key}
                   onClick={() => runStudio(card.key)}
@@ -779,12 +814,12 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <div className="glass mt-2 rounded-2xl border border-white/10 p-3 min-h-[140px] space-y-2">
+            <div className="glass mt-2 rounded-2xl border border-white/10 p-3 flex-1 flex flex-col min-h-0 space-y-2 overflow-hidden">
               {/* <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Результаты</p> */}
               {studioResults.length === 0 && (
-                <p className="text-sm text-slate-400">Нажмите на карточку, чтобы сгенерировать результат.</p>
+                <p className="text-sm text-slate-400 shrink-0"></p>
               )}
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              <div className="space-y-2 flex-1 overflow-y-auto pr-1">
                 {studioResults.map((item) => (
                   <button
                     key={item.id}
@@ -858,6 +893,28 @@ export default function Home() {
           </aside>
         </div>
       </div>
+
+      {isCareerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="relative w-full rounded-2xl bg-slate-900/95 border border-white/10 shadow-2xl overflow-hidden h-full flex flex-col">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4 bg-white/5 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                 <span className="text-xl">💼</span>
+                 <p className="text-sm uppercase tracking-[0.2em] text-slate-300">Карьера</p>
+              </div>
+              <button
+                onClick={() => setCareerOpen(false)}
+                className="text-slate-300 hover:text-white p-2 hover:bg-white/10 rounded-lg transition"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-6 bg-[#020617]">
+              <JobPrepView />
+            </div>
+          </div>
+        </div>
+      )}
 
       {isProfileOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
@@ -1478,6 +1535,387 @@ function VideoView({ data }: { data: VideoSpec }) {
       </div>
     </div>
   );
+}
+
+// Job Prep Component
+function JobPrepView() {
+  const [step, setStep] = useState<'input' | 'dashboard' | 'plan' | 'test'>('input');
+  const [jobDetails, setJobDetails] = useState<JobDetails>({
+    title: '',
+    description: '',
+    requirements: ''
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Data State
+  const [studyPlan, setStudyPlan] = useState<StudyPlanModule[]>([]);
+  const [testQuestions, setTestQuestions] = useState<QuizQuestion[]>([]);
+  const [quizQuestionCount, setQuizQuestionCount] = useState(10);
+  
+  // Test State
+  const [userAnswers, setUserAnswers] = useState<number[]>([]);
+  const [showTestResults, setShowTestResults] = useState(false);
+
+  const handleCreatePlan = async () => {
+    if (!jobDetails.title || !jobDetails.requirements) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "job_plan",
+          prompt: JSON.stringify(jobDetails),
+          sources: [], 
+        }),
+      });
+      const data = await res.json();
+      if (data.error || !data.text) {
+        throw new Error(data.error || "Нет ответа от сервера");
+      }
+      // Parse JSON from text response
+      const cleanJson = data.text.replace(/```json|```/gi, "").trim();
+      const plan = JSON.parse(cleanJson);
+      setStudyPlan(plan);
+      setStep('dashboard');
+    } catch (e) {
+      console.error(e);
+      alert("Не удалось создать план. " + (e instanceof Error ? e.message : ""));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStartTest = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "job_quiz",
+          prompt: `Job: ${jobDetails.title}. Requirements: ${jobDetails.requirements}. Count: ${quizQuestionCount}`,
+          sources: [],
+        }),
+      });
+      const data = await res.json();
+      if (data.error || !data.text) {
+        throw new Error(data.error || "Нет ответа от сервера");
+      }
+      const cleanJson = data.text.replace(/```json|```/gi, "").trim();
+      const questions = JSON.parse(cleanJson).map((q: any) => ({
+        question: q.question,
+        options: q.options,
+        answer: q.answer, // Ensure backend returns 'answer' index
+        explanation: q.explanation // Add explanation field to type if needed, generic QuizQuestion might not have it but we can extend
+      }));
+      
+      setTestQuestions(questions);
+      setUserAnswers(new Array(questions.length).fill(-1));
+      setShowTestResults(false);
+      setStep('test');
+    } catch (e) {
+      console.error(e);
+      alert("Не удалось создать тест. " + (e instanceof Error ? e.message : ""));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const calculateTestScore = () => {
+    return userAnswers.reduce((acc, ans, idx) => {
+      return ans === testQuestions[idx].answer ? acc + 1 : acc;
+    }, 0);
+  };
+
+  if (step === 'input') {
+    return (
+      <div className="glass rounded-2xl p-8 max-w-2xl mx-auto border border-white/10">
+        <div className="mb-6 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-500/20 text-indigo-300 mb-4 border border-indigo-500/30">
+            <span className="text-3xl">💼</span>
+          </div>
+          <h2 className="text-2xl font-bold text-white">Подготовка к Собеседованию</h2>
+          <p className="text-slate-400 mt-2">Введите детали вакансии. ИИ составит учебный план и тест для проверки знаний.</p>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-300 mb-1">Название вакансии</label>
+            <input 
+              type="text" 
+              value={jobDetails.title}
+              onChange={(e) => setJobDetails({...jobDetails, title: e.target.value})}
+              placeholder="напр. Senior Frontend Engineer"
+              className="w-full p-3 bg-white/5 border border-white/10 rounded-xl focus:border-cyan-400/50 outline-none text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-300 mb-1">Описание и Обязанности</label>
+            <textarea 
+              value={jobDetails.description}
+              onChange={(e) => setJobDetails({...jobDetails, description: e.target.value})}
+              placeholder="Вставьте основные обязанности..."
+              className="w-full p-3 bg-white/5 border border-white/10 rounded-xl focus:border-cyan-400/50 outline-none h-36 resize-none text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-300 mb-1">Требования и Навыки</label>
+            <textarea 
+              value={jobDetails.requirements}
+              onChange={(e) => setJobDetails({...jobDetails, requirements: e.target.value})}
+              placeholder="Список требуемых навыков (напр. React, TypeScript, AWS)..."
+              className="w-full p-3 bg-white/5 border border-white/10 rounded-xl focus:border-cyan-400/50 outline-none h-36 resize-none text-white"
+            />
+          </div>
+
+          <button 
+            onClick={handleCreatePlan}
+            disabled={isLoading || !jobDetails.title}
+            className="w-full py-4 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
+          >
+            {isLoading ? 'Анализ вакансии...' : 'Составить План Подготовки'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'dashboard') {
+    return (
+      <div className="max-w-5xl mx-auto">
+        <header className="mb-8">
+          <button onClick={() => setStep('input')} className="text-sm text-slate-400 hover:text-cyan-300 mb-2 flex items-center gap-1 transition-colors">
+            ← Начать заново
+          </button>
+          <h2 className="text-3xl font-bold text-white">Подготовка: {jobDetails.title}</h2>
+          <p className="text-slate-400">Ваша персонализированная дорожная карта.</p>
+        </header>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Card 1: Study Plan */}
+          <div 
+            onClick={() => setStep('plan')}
+            className="glass p-8 rounded-2xl border border-white/10 cursor-pointer hover:border-cyan-400/50 hover:bg-white/5 transition-all group"
+          >
+            <div className="w-12 h-12 bg-blue-500/20 text-blue-300 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform border border-blue-500/30">
+              <span className="text-2xl">📅</span>
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Учебный План</h3>
+            <p className="text-slate-400 mb-4">Структурированный план из {studyPlan.length} модулей, охватывающий все ключевые требования.</p>
+            <span className="text-cyan-400 font-medium text-sm group-hover:text-cyan-300">Открыть План →</span>
+          </div>
+
+          {/* Card 2: Readiness Test */}
+          <div 
+            className="glass p-8 rounded-2xl border border-white/10 transition-all group relative overflow-hidden flex flex-col justify-between hover:border-purple-400/50 hover:bg-white/5"
+          >
+            {isLoading && (
+              <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-10 backdrop-blur-sm">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+              </div>
+            )}
+            
+            <div>
+              <div className="w-12 h-12 bg-purple-500/20 text-purple-300 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform border border-purple-500/30">
+                <span className="text-2xl">📝</span>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Оценка Готовности</h3>
+              <p className="text-slate-400 mb-4">Пройдите технический тест, чтобы проверить готовность к интервью.</p>
+            </div>
+
+            <div className="mt-4 border-t border-white/10 pt-4">
+               <div className="flex items-center justify-between mb-4">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Вопросы</label>
+                  <select 
+                    value={quizQuestionCount}
+                    onChange={(e) => setQuizQuestionCount(parseInt(e.target.value))}
+                    className="text-sm bg-slate-900 border border-white/20 rounded px-2 py-1 outline-none focus:border-purple-500 text-slate-300"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                      <option value={5}>5 Вопросов</option>
+                      <option value={10}>10 Вопросов</option>
+                      <option value={15}>15 Вопросов</option>
+                      <option value={20}>20 Вопросов</option>
+                  </select>
+               </div>
+               
+               <button 
+                 onClick={handleStartTest}
+                 className="w-full py-2 bg-purple-600/80 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors shadow-sm border border-purple-500/50"
+               >
+                  Начать Тестирование
+               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'plan') {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <button onClick={() => setStep('dashboard')} className="text-sm text-slate-400 hover:text-cyan-300 mb-6 flex items-center gap-2 transition-colors">
+          ← Назад
+        </button>
+        
+        <h2 className="text-2xl font-bold text-white mb-6">Учебный План для {jobDetails.title}</h2>
+        
+        <div className="space-y-6">
+          {studyPlan.map((module, idx) => (
+            <div key={idx} className="glass rounded-xl border border-white/10 overflow-hidden">
+              <div className="bg-white/5 border-b border-white/10 p-4 flex justify-between items-center">
+                <h3 className="font-bold text-slate-200">Модуль {module.week}: {module.title}</h3>
+                <span className="text-xs font-semibold bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded border border-indigo-500/30">~{module.estimatedHours} Часов</span>
+              </div>
+              <div className="p-6">
+                <p className="text-slate-400 mb-6 leading-relaxed">{module.description}</p>
+                
+                <div className="grid gap-4">
+                   {module.topics.map((topic, tIdx) => (
+                     <div key={tIdx} className="bg-white/5 border border-white/5 rounded-lg p-4 hover:border-indigo-500/30 transition-colors">
+                        <h4 className="font-bold text-slate-300 text-sm mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                          {topic.name}
+                        </h4>
+                        
+                        {topic.resources && topic.resources.length > 0 ? (
+                          <div className="space-y-2 ml-4">
+                            {topic.resources.map((res, rIdx) => (
+                              <a 
+                                key={rIdx} 
+                                href={res.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors group"
+                              >
+                                <div className="flex-shrink-0 text-slate-500 group-hover:text-indigo-400">
+                                  <span className="text-lg">
+                                    {res.type === 'video' ? '▶️' : res.type === 'book' ? '📚' : '📄'}
+                                  </span>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium text-indigo-300 truncate group-hover:text-indigo-200">{res.title}</p>
+                                  <p className="text-[10px] text-slate-500 truncate">{res.url}</p>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-500 ml-4 italic">Нет ресурсов.</p>
+                        )}
+                     </div>
+                   ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'test') {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <button onClick={() => setStep('dashboard')} className="text-sm text-slate-400 hover:text-cyan-300 mb-6 flex items-center gap-2 transition-colors">
+          ← Завершить Тест
+        </button>
+
+        <div className="space-y-6">
+          {testQuestions.map((q, qIdx) => {
+            const isAnswered = userAnswers[qIdx] !== -1;
+            const isCorrect = userAnswers[qIdx] === q.answer;
+            
+            return (
+              <div key={qIdx} className="glass p-6 rounded-2xl border border-white/10">
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-lg font-semibold text-slate-200">Вопрос {qIdx + 1}</h3>
+                  {showTestResults && (
+                    <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${isCorrect ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
+                      {isCorrect ? 'Верно' : 'Неверно'}
+                    </span>
+                  )}
+                </div>
+                <p className="text-slate-300 mb-4">{q.question}</p>
+                
+                <div className="space-y-2">
+                  {q.options.map((opt, optIdx) => {
+                    let btnClass = "w-full text-left p-3 rounded-lg border text-sm transition-all ";
+                    
+                    if (showTestResults) {
+                      if (optIdx === q.answer) {
+                        btnClass += "bg-emerald-500/20 border-emerald-500/50 text-emerald-200 font-medium ";
+                      } else if (optIdx === userAnswers[qIdx] && optIdx !== q.answer) {
+                        btnClass += "bg-rose-500/20 border-rose-500/50 text-rose-300 ";
+                      } else {
+                        btnClass += "border-white/5 text-slate-500 opacity-50 ";
+                      }
+                    } else {
+                      if (userAnswers[qIdx] === optIdx) {
+                        btnClass += "bg-indigo-500/30 border-indigo-500 text-white font-medium ring-1 ring-indigo-500/50";
+                      } else {
+                        btnClass += "bg-white/5 border-white/10 hover:bg-white/10 text-slate-300 hover:text-white";
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={optIdx}
+                        onClick={() => {
+                          if (!showTestResults) {
+                            const newAnswers = [...userAnswers];
+                            newAnswers[qIdx] = optIdx;
+                            setUserAnswers(newAnswers);
+                          }
+                        }}
+                        className={btnClass}
+                        disabled={showTestResults}
+                      >
+                        <span className="inline-block w-6 font-bold opacity-40 mr-2">{String.fromCharCode(65 + optIdx)}.</span>
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {showTestResults && (q as any).explanation && (
+                  <div className="mt-4 p-4 bg-blue-500/10 text-blue-200 rounded-lg text-sm border border-blue-500/20">
+                    <strong className="font-semibold block mb-1 text-blue-100">Пояснение:</strong>
+                    {(q as any).explanation}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {!showTestResults ? (
+            <button 
+              onClick={() => setShowTestResults(true)}
+              disabled={userAnswers.includes(-1)}
+              className="w-full bg-slate-100 text-slate-900 font-semibold py-4 rounded-xl hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+            >
+              Отправить Ответы
+            </button>
+          ) : (
+            <div className="text-center p-6 glass rounded-2xl border border-white/10">
+              <p className="text-slate-400 mb-2">Ваш результат</p>
+              <p className="text-4xl font-bold text-white mb-4">{calculateTestScore()} / {testQuestions.length}</p>
+              <button 
+                 onClick={() => setStep('plan')}
+                 className="text-indigo-400 font-medium hover:text-indigo-300 hover:underline"
+              >
+                Вернуться к плану
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // Mock Data for Profile

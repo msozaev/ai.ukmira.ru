@@ -34,7 +34,9 @@ export type StudioMode =
   | "flashcards"
   | "quiz"
   | "infographic"
-  | "slides";
+  | "slides"
+  | "job_plan"
+  | "job_quiz";
 
 const modeGuides: Record<StudioMode, string> = {
   chat: "Кратко ответь на вопрос, если нужно предложи дальнейшие шаги обучения.",
@@ -54,6 +56,10 @@ const modeGuides: Record<StudioMode, string> = {
     "Верни ТОЛЬКО JSON без пояснений. Формат: {\"title\":\"...\",\"blocks\":[{\"title\":\"...\",\"content\":\"...\"}],\"takeaway\":\"...\"}. 3-5 блоков. Без markdown, без текста вне JSON.",
   slides:
     "Верни ТОЛЬКО JSON без пояснений. Создай подробную презентацию для глубокого изучения темы. Формат: {\"title\":\"...\",\"slides\":[{\"title\":\"...\",\"bullets\":[\"...detailed point 1...\",\"...detailed point 2...\",\"...detailed point 3...\",\"...detailed point 4...\",\"...detailed point 5...\"]}]}. 10-15 насыщенных слайдов. Каждый bullet должен быть развёрнутым предложением с фактами, цифрами или объяснениями из источника. Избегай общих фраз.",
+  job_plan:
+    "Act as an expert career coach and curriculum developer. Create a step-by-step study plan to prepare a candidate for the specified job based on the description and requirements provided. Output in Russian language. Break the plan down into 4-6 sequential modules (represented as weeks or phases). For each module, provide: 1. Title and Description. 2. Specific Key Topics (as a list). 3. Estimated hours to complete. CRITICAL: For each Key Topic, you MUST provide 1-3 specific external learning resources (Title, URL, Type). IMPORTANT: RETURN ONLY JSON. Format: [{\"week\":1,\"title\":\"...\",\"description\":\"...\",\"estimatedHours\":5,\"topics\":[{\"name\":\"...\",\"resources\":[{\"title\":\"...\",\"url\":\"...\",\"type\":\"article\"}]}]}]",
+  job_quiz:
+    "Create a technical readiness assessment (quiz) for the job. Output in Russian language. Generate multiple-choice questions that test specific knowledge required for this role. IMPORTANT: RETURN ONLY JSON. Format: [{\"question\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"answer\":0,\"explanation\":\"...\"}]. The answer field is the index (0-3) of the correct option."
 };
 
 function trimSources(sources: Source[], limit = 18000) {
