@@ -924,7 +924,7 @@ export default function Home() {
             <div className="flex items-center justify-between pb-2 border-b border-white/10 shrink-0">
               <div>
                 {/* <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Студия</p> */}
-                <h2 className="text-xl font-semibold text-slate-300">Инструменты</h2>
+                <h2 className="text-xl font-semibold text-slate-300">Студия</h2>
               </div>
             </div>
 
@@ -1063,7 +1063,7 @@ export default function Home() {
             className={cx("flex flex-col items-center gap-1 transition", mobileSection === 'studio' ? "text-cyan-400" : "text-slate-400")}
           >
             <Icons.Layout className="w-6 h-6" />
-            <span className="text-[10px] font-medium">Инструменты</span>
+            <span className="text-[10px] font-medium">Студия</span>
           </button>
         </div>
       </div>
