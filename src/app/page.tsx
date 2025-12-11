@@ -633,7 +633,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden px-3 pt-4 pb-20 md:pb-4 sm:px-4 lg:px-6 xl:px-10">
+    <div className="h-[100dvh] flex flex-col overflow-hidden px-3 pt-4 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-4 sm:px-4 lg:px-6 xl:px-10">
       <div className="mx-auto flex w-full flex-1 flex-col gap-5 lg:gap-6 min-h-0">
         <header className="relative flex items-center justify-between rounded-2xl glass px-4 py-2 shadow-lg no-hover-outline z-50">
           <div className="flex items-center gap-3">
@@ -675,7 +675,7 @@ export default function Home() {
 
           {/* Mobile Menu Overlay */}
           {isMobileMenuOpen && (
-            <div className="absolute top-full left-0 right-0 mt-2 mx-2 p-4 rounded-2xl glass-strong border border-white/10 flex flex-col gap-3 shadow-2xl md:hidden animate-in fade-in slide-in-from-top-4">
+            <div className="absolute top-full left-0 right-0 mt-2 mx-2 p-4 rounded-2xl mobile-menu-opaque border border-white/10 flex flex-col gap-3 shadow-2xl md:hidden animate-in fade-in slide-in-from-top-4">
               <button
                 onClick={() => { setCareerOpen(true); setMobileMenuOpen(false); }}
                 className="flex items-center gap-3 rounded-xl bg-white/5 px-4 py-3 text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white border border-white/5"
@@ -788,7 +788,7 @@ export default function Home() {
                     value={linkUrl}
                     onChange={(e) => setLinkUrl(e.target.value)}
                     placeholder="https://..."
-                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
+                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-base md:text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
                   />
                   <button onClick={handleLinkFetch} className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-cyan-400">Добавить ссылку</button>
                 </div>
@@ -799,7 +799,7 @@ export default function Home() {
                     value={ytUrl}
                     onChange={(e) => setYtUrl(e.target.value)}
                     placeholder="https://youtube.com/..."
-                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
+                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-base md:text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
                   />
                   <button onClick={handleYoutubeFetch} className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-cyan-400">Импортировать</button>
                 </div>
@@ -810,14 +810,14 @@ export default function Home() {
                     value={textTitle}
                     onChange={(e) => setTextTitle(e.target.value)}
                     placeholder="Название"
-                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
+                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-base md:text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
                   />
                   <textarea
                     value={textSource}
                     onChange={(e) => setTextSource(e.target.value)}
                     rows={4}
                     placeholder="Вставьте текст или заметки"
-                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
+                    className="w-full rounded-lg bg-white/5 px-3 py-2 text-base md:text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
                   />
                   <button onClick={handleTextAdd} className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-cyan-400">Добавить текст</button>
                 </div>
@@ -906,7 +906,7 @@ export default function Home() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                   placeholder="Спросите тьютора..."
-                  className="flex-1 rounded-xl bg-white/5 px-3 py-3 text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
+                  className="flex-1 rounded-xl bg-white/5 px-3 py-3 text-base md:text-sm text-white outline-none border border-white/10 focus:border-cyan-400/60"
                 />
                 <button
                   onClick={() => sendMessage()}
@@ -1042,7 +1042,7 @@ export default function Home() {
       </div>
 
       {/* Mobile Bottom Nav */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/80 backdrop-blur-xl border-t border-white/10 px-6 py-3 md:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/80 backdrop-blur-xl border-t border-white/10 px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:hidden">
         <div className="flex justify-around items-center">
           <button 
             onClick={() => setMobileSection('sources')}
@@ -1821,7 +1821,7 @@ function JobPrepView() {
               value={jobDetails.title}
               onChange={(e) => setJobDetails({...jobDetails, title: e.target.value})}
               placeholder="напр. Senior Frontend Engineer"
-              className="w-full p-3 bg-white/5 border border-white/10 rounded-xl focus:border-cyan-400/50 outline-none text-white"
+              className="w-full p-3 bg-white/5 border border-white/10 rounded-xl focus:border-cyan-400/50 outline-none text-white text-base md:text-sm"
             />
           </div>
           <div>
@@ -1830,7 +1830,7 @@ function JobPrepView() {
               value={jobDetails.description}
               onChange={(e) => setJobDetails({...jobDetails, description: e.target.value})}
               placeholder="Вставьте основные обязанности..."
-              className="w-full p-3 bg-white/5 border border-white/10 rounded-xl focus:border-cyan-400/50 outline-none h-36 resize-none text-white"
+              className="w-full p-3 bg-white/5 border border-white/10 rounded-xl focus:border-cyan-400/50 outline-none h-36 resize-none text-white text-base md:text-sm"
             />
           </div>
           <div>
@@ -1839,7 +1839,7 @@ function JobPrepView() {
               value={jobDetails.requirements}
               onChange={(e) => setJobDetails({...jobDetails, requirements: e.target.value})}
               placeholder="Список требуемых навыков (напр. React, TypeScript, AWS)..."
-              className="w-full p-3 bg-white/5 border border-white/10 rounded-xl focus:border-cyan-400/50 outline-none h-36 resize-none text-white"
+              className="w-full p-3 bg-white/5 border border-white/10 rounded-xl focus:border-cyan-400/50 outline-none h-36 resize-none text-white text-base md:text-sm"
             />
           </div>
 
