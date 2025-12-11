@@ -65,7 +65,7 @@ body {
 }
 
 .mobile-menu-opaque {
-  background-color: var(--background);
+  background-color: rgb(15 23 42); /* Equivalent to Tailwind's bg-slate-900 */
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
