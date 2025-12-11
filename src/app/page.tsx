@@ -633,7 +633,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden px-3 pt-4 pb-20 md:pb-4 sm:px-4 lg:px-6 xl:px-10">
+    <div className="min-h-[100dvh] md:h-screen flex flex-col overflow-y-auto md:overflow-hidden px-3 pt-4 pb-20 md:pb-4 sm:px-4 lg:px-6 xl:px-10">
       <div className="mx-auto flex w-full flex-1 flex-col gap-5 lg:gap-6 min-h-0">
         <header className="relative flex items-center justify-between rounded-2xl glass px-4 py-2 shadow-lg no-hover-outline z-50">
           <div className="flex items-center gap-3">
