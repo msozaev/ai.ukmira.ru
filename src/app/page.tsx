@@ -306,6 +306,21 @@ const Icons = {
   Briefcase: ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
   ),
+  Menu: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+  ),
+  X: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+  ),
+  MessageSquare: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  ),
+  Library: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="8" height="18" x="3" y="3" rx="1"/><path d="M7 3v18"/><path d="M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1 5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z"/></svg>
+  ),
+  Layout: ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="9" x2="9" y1="21" y2="9"/></svg>
+  ),
 };
 
 export default function Home() {
@@ -328,6 +343,8 @@ export default function Home() {
   const [studioLoading, setStudioLoading] = useState<StudioMode | null>(null);
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [isCareerOpen, setCareerOpen] = useState(false);
+  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSection, setMobileSection] = useState<'sources' | 'chat' | 'studio'>('chat');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState<string>("");
   const [modalContent, setModalContent] = useState<string>("");
@@ -616,9 +633,9 @@ export default function Home() {
   ];
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden px-3 pt-4 pb-4 sm:px-4 lg:px-6 xl:px-10">
+    <div className="h-screen flex flex-col overflow-hidden px-3 pt-4 pb-20 md:pb-4 sm:px-4 lg:px-6 xl:px-10">
       <div className="mx-auto flex w-full flex-1 flex-col gap-5 lg:gap-6 min-h-0">
-        <header className="flex items-center justify-between rounded-2xl glass px-4 py-2 shadow-lg no-hover-outline">
+        <header className="relative flex items-center justify-between rounded-2xl glass px-4 py-2 shadow-lg no-hover-outline z-50">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="MIRAVERSE" className="h-16 w-auto brightness-200 saturate-300" />
             <div>
@@ -626,6 +643,8 @@ export default function Home() {
               <h1 className="text-lg font-semibold text-white">M I R A V E R S E</h1>
             </div>
           </div>
+          
+          {/* Desktop Nav */}
           <div className="hidden items-center gap-3 md:flex">
              <button
               onClick={() => setCareerOpen(true)}
@@ -645,11 +664,41 @@ export default function Home() {
               </div>
             </button>
           </div>
+
+          {/* Mobile Nav Button */}
+          <button 
+            onClick={() => setMobileMenuOpen(!isMobileMenuOpen)}
+            className="md:hidden p-2 rounded-xl bg-white/5 border border-white/10 text-slate-300"
+          >
+            {isMobileMenuOpen ? <Icons.X className="w-6 h-6" /> : <Icons.Menu className="w-6 h-6" />}
+          </button>
+
+          {/* Mobile Menu Overlay */}
+          {isMobileMenuOpen && (
+            <div className="absolute top-full left-0 right-0 mt-2 mx-2 p-4 rounded-2xl glass-strong border border-white/10 flex flex-col gap-3 shadow-2xl md:hidden animate-in fade-in slide-in-from-top-4">
+              <button
+                onClick={() => { setCareerOpen(true); setMobileMenuOpen(false); }}
+                className="flex items-center gap-3 rounded-xl bg-white/5 px-4 py-3 text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white border border-white/5"
+              >
+                <Icons.Briefcase className="h-5 w-5 text-cyan-500" />
+                <span>Карьера</span>
+              </button>
+              <button 
+                onClick={() => { setProfileOpen(true); setMobileMenuOpen(false); }}
+                className="flex items-center gap-3 rounded-xl bg-white/5 px-4 py-3 hover:bg-white/10 border border-white/5"
+              >
+                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                  AB
+                </div>
+                <span className="text-sm font-medium text-slate-300">Профиль</span>
+              </button>
+            </div>
+          )}
         </header>
 
         <div className="layout-grid pb-4 flex-1 min-h-0">
           {/* Sidebar */}
-          <aside className="glass-strong dot-grid rounded-2xl p-4 h-full flex flex-col overflow-hidden min-h-0">
+          <aside className={cx("glass-strong dot-grid rounded-2xl p-4 h-full flex-col overflow-hidden min-h-0", mobileSection === 'sources' ? 'flex' : 'hidden md:flex')}>
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div>
                 {/* <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Источники данных</p> */}
@@ -809,7 +858,7 @@ export default function Home() {
           </aside>
 
           {/* Chat */}
-          <section className="glass-strong rounded-2xl p-4 flex flex-col h-full self-stretch min-h-0">
+          <section className={cx("glass-strong rounded-2xl p-4 flex-col h-full self-stretch min-h-0", mobileSection === 'chat' ? 'flex' : 'hidden md:flex')}>
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div>
                 {/* <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Чат с репетитором</p> */}
@@ -871,7 +920,7 @@ export default function Home() {
           </section>
 
           {/* Studio */}
-          <aside className="glass-strong dot-grid rounded-2xl p-4 space-y-3 h-full self-stretch flex flex-col overflow-hidden min-h-0">
+          <aside className={cx("glass-strong dot-grid rounded-2xl p-4 space-y-3 h-full self-stretch flex-col overflow-hidden min-h-0", mobileSection === 'studio' ? 'flex' : 'hidden md:flex')}>
             <div className="flex items-center justify-between pb-2 border-b border-white/10 shrink-0">
               <div>
                 {/* <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Студия</p> */}
@@ -879,7 +928,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {studioCards.filter(card => card.key !== "mindmap" && card.key !== "report").map((card) => {
                 const IconComponent = {
                   audio: Icons.Mic,
@@ -989,6 +1038,33 @@ export default function Home() {
               </div>
             </div>
           </aside>
+        </div>
+      </div>
+
+      {/* Mobile Bottom Nav */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/80 backdrop-blur-xl border-t border-white/10 px-6 py-3 md:hidden">
+        <div className="flex justify-around items-center">
+          <button 
+            onClick={() => setMobileSection('sources')}
+            className={cx("flex flex-col items-center gap-1 transition", mobileSection === 'sources' ? "text-cyan-400" : "text-slate-400")}
+          >
+            <Icons.Library className="w-6 h-6" />
+            <span className="text-[10px] font-medium">Источники</span>
+          </button>
+          <button 
+            onClick={() => setMobileSection('chat')}
+            className={cx("flex flex-col items-center gap-1 transition", mobileSection === 'chat' ? "text-cyan-400" : "text-slate-400")}
+          >
+            <Icons.MessageSquare className="w-6 h-6" />
+            <span className="text-[10px] font-medium">Чат</span>
+          </button>
+          <button 
+            onClick={() => setMobileSection('studio')}
+            className={cx("flex flex-col items-center gap-1 transition", mobileSection === 'studio' ? "text-cyan-400" : "text-slate-400")}
+          >
+            <Icons.Layout className="w-6 h-6" />
+            <span className="text-[10px] font-medium">Студия</span>
+          </button>
         </div>
       </div>
 
