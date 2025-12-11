@@ -889,7 +889,7 @@ export default function Home() {
             </div>
 
             <div className="glass mt-2 rounded-2xl border border-white/10 p-3">
-              <div className="flex flex-wrap gap-2 pb-2">
+              <div className="hidden md:flex flex-wrap gap-2 pb-2">
                 {suggested.map((s) => (
                   <button
                     key={s}
