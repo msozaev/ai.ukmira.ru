@@ -1,15 +1,16 @@
+import Image from "next/image";
 import Link from "next/link";
 
 const cards = [
   {
-    title: "Miraverse Репетитор",
+    title: "Репетитор",
     description: "Персональный ИИ-репетитор для учебы, практики и подготовки.",
     href: "/tutor",
     accent: "from-cyan-400/20 via-sky-400/10 to-emerald-400/20",
   },
   {
-    title: "Miraverse Наука",
-    description: "Отдельное приложение для научных задач и экспериментов.",
+    title: "Наука",
+    description: "Лабораторная вселенная для поиска будущих исследований.",
     href: "/science",
     accent: "from-violet-400/20 via-fuchsia-400/10 to-pink-400/20",
   },
@@ -20,13 +21,21 @@ export default function Home() {
     <main className="min-h-screen px-6 py-16 sm:px-10">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
         <header className="space-y-4 text-center">
-          <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Miraverse</p>
-          <h1 className="text-3xl font-semibold text-white sm:text-4xl">
+          <Image
+            src="/logo.png"
+            alt="МИРА"
+            width={165}
+            height={99}
+            className="mx-auto h-auto w-[165px]"
+            priority
+          />
+          <p className="text-ms uppercase tracking-[0.3em] text-slate-400">Miraverse</p>
+          {/* <h1 className="text-3xl font-semibold text-white sm:text-4xl">
             Выберите направление
           </h1>
           <p className="mx-auto max-w-2xl text-base text-slate-300">
             Два режима, два разных приложения. Выберите то, что нужно прямо сейчас.
-          </p>
+          </p> */}
         </header>
 
         <section className="grid gap-6 md:grid-cols-2">
@@ -48,9 +57,9 @@ export default function Home() {
                 </div>
                 <div className="mt-auto flex items-center gap-3 text-sm font-semibold text-white">
                   Перейти {"→"}
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-lg">
+                  {/* <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-lg">
                     +
-                  </span>
+                  </span> */}
                 </div>
               </div>
             </Link>
