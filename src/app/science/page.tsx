@@ -126,6 +126,9 @@ const truncate = (text: string, limit: number) => {
 const normalizeSpec = (value: string) => {
   const cleaned = value.replace(/[.\u2026]+$/g, "").replace(/\s+/g, " ").trim();
   if (!cleaned || cleaned === "-" || cleaned === "—") return "Другие направления";
+  if (cleaned === "Гуманитарные науки, культура народов Евразии") {
+    return "Гуманитарные науки";
+  }
   return cleaned;
 };
 
@@ -149,6 +152,19 @@ const getTopicIcon = (topic: string) => {
   return Sparkles;
 };
 
+const applyMoonRadiusOverrides = (topic: string, radius: number) => {
+  if (topic === "Научно-образовательное пространство") {
+    return Math.max(38, radius - 24);
+  }
+  if (topic.startsWith("Фундаментальные и прикладные исследования в области кар")) {
+    return Math.max(38, radius - 26);
+  }
+  if (topic.startsWith("Маркетинговые и патентные исследования в области")) {
+    return Math.max(38, radius - 24);
+  }
+  return radius;
+};
+
 export default function SciencePage() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [hoveredTopic, setHoveredTopic] = useState<string | null>(null);
@@ -160,6 +176,7 @@ export default function SciencePage() {
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [hasSelectedCluster, setHasSelectedCluster] = useState(false);
   const [selectedTopicOrigins, setSelectedTopicOrigins] = useState<Record<string, string>>({});
+  const [hoveredTopicOrigin, setHoveredTopicOrigin] = useState<string | null>(null);
   const [pathSegments, setPathSegments] = useState<PathSegment[]>([]);
   const mapRef = useRef<HTMLDivElement | null>(null);
   const sunRef = useRef<HTMLDivElement | null>(null);
@@ -276,8 +293,8 @@ export default function SciencePage() {
 
   const activeVisibleTopics = useMemo(() => {
     if (!activeCluster) return [];
-    return showAllTopics ? activeFilteredTopics : activeFilteredTopics.slice(0, 10);
-  }, [activeFilteredTopics, showAllTopics, activeCluster]);
+    return activeFilteredTopics;
+  }, [activeFilteredTopics, activeCluster]);
 
   const extraTopicsCount = Math.max(0, activeFilteredTopics.length - activeVisibleTopics.length);
 
@@ -286,26 +303,93 @@ export default function SciencePage() {
     if (!cluster) return [];
     const filtered = filterTopics(cluster.topics);
     if (isActive) return activeVisibleTopics;
-    return filtered.slice(0, 4);
+    return filtered;
   };
 
   const getMoonLayout = (seed: string, count: number) => {
     if (!count) return [];
     const layout: Array<{ angle: number; radius: number }> = [];
     const isEngineering = seed.startsWith("Инжиниринг и передовые");
-    const baseAngle = (seed.length * 37) % 360;
-    const baseRadius = 34 + (seed.length % 8) * 3 + (isEngineering ? 6 : 0);
+    const isBioGen = seed.startsWith("Биомедицина и генетика");
+    const chaosBoost = isBioGen || isEngineering ? 1.15 : 1;
+    const distanceBoost = isBioGen ? 6 : isEngineering ? 4 : 0;
+    let seedHash = 0;
+    for (let i = 0; i < seed.length; i += 1) {
+      seedHash = (seedHash * 31 + seed.charCodeAt(i)) >>> 0;
+    }
+    let rngState = seedHash || 1;
+    const rand = () => {
+      rngState = (rngState + 0x6d2b79f5) >>> 0;
+      let t = rngState;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const seedOffset = (seedHash % 360) + rand() * 18;
+    const baseRadius =
+      52 +
+      Math.min(64, Math.floor(count / 5) * 10) +
+      (seed.length % 7) * 2 +
+      (isEngineering ? 6 : 0) +
+      distanceBoost;
+    const ringGap = 26 + (isEngineering ? 6 : 0) + (isBioGen ? 4 : 0);
+    const minArc = 30 + (isEngineering ? 6 : 0);
+    const minRadius = baseRadius + 12 + (isBioGen ? 6 : 0);
+    let remaining = count;
+    let ringIndex = 0;
 
-    for (let i = 0; i < count; i += 1) {
-      const angle =
-        (baseAngle +
-          (360 / count) * i +
-          (seed.charCodeAt(i % seed.length) || 0) * (isEngineering ? 1.25 : 0.9) +
-          (isEngineering ? 14 : 0)) %
-        360;
+    while (remaining > 0) {
       const radius =
-        baseRadius + ((seed.charCodeAt((i + 3) % seed.length) || 0) % (isEngineering ? 32 : 24));
-      layout.push({ angle, radius });
+        baseRadius + ringGap * ringIndex + (rand() - 0.5) * ringGap * 0.45 * chaosBoost;
+      const circumference = 2 * Math.PI * radius;
+      const maxOnRing = Math.max(5, Math.floor(circumference / minArc));
+      const ringCapacity = Math.max(3, maxOnRing - Math.floor(rand() * 2));
+      const ringCount = Math.min(remaining, ringCapacity);
+      const angleStep = 360 / ringCount;
+      const ringOffset = rand() * angleStep;
+
+      for (let i = 0; i < ringCount; i += 1) {
+        const jitter = (rand() - 0.5) * angleStep * 0.45 * chaosBoost;
+        const angle = (seedOffset + ringOffset + angleStep * i + jitter) % 360;
+        const alternator = i % 2 === 0 ? -1 : 1;
+        const jump = (0.25 + rand() * 0.35) * ringGap * chaosBoost;
+        const radialJitter =
+          alternator * jump + (rand() - 0.5) * ringGap * 0.2 * chaosBoost;
+        const finalRadius = Math.max(minRadius, radius + radialJitter);
+        layout.push({ angle, radius: finalRadius });
+      }
+
+      remaining -= ringCount;
+      ringIndex += 1;
+    }
+
+    if (isBioGen || isEngineering) {
+      let pickState = (seedHash ^ 0x9e3779b9) >>> 0;
+      const pickRand = () => {
+        pickState = (pickState + 0x6d2b79f5) >>> 0;
+        let t = pickState;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+
+      const closeCount = Math.min(3, layout.length);
+      const closeIndices = new Set<number>();
+      while (closeIndices.size < closeCount) {
+        closeIndices.add(Math.floor(pickRand() * layout.length));
+      }
+
+      const closeFloor = Math.max(36, minRadius - 14);
+      const normalFloor = Math.max(40, minRadius - 6);
+
+      layout.forEach((item, idx) => {
+        const isClose = closeIndices.has(idx);
+        const pull = isClose
+          ? ringGap * (0.9 + pickRand() * 0.4)
+          : ringGap * (0.25 + pickRand() * 0.2);
+        const floor = isClose ? closeFloor : normalFloor;
+        item.radius = Math.max(floor, item.radius - pull);
+      });
     }
 
     return layout;
@@ -355,8 +439,8 @@ export default function SciencePage() {
       viewport.width || fallbackMin,
       viewport.height || fallbackMin
     );
-    const maxOrbit = Math.min(560, Math.max(260, viewportMin * 0.47));
-    const minOrbit = Math.min(180, maxOrbit * 0.45);
+    const maxOrbit = Math.min(540, Math.max(240, viewportMin * 0.46));
+    const minOrbit = Math.min(130, maxOrbit * 0.34);
     const orbitGap =
       clusters.length > 1 ? (maxOrbit - minOrbit) / (clusters.length - 1) : 0;
 
@@ -439,7 +523,7 @@ export default function SciencePage() {
       .filter(Boolean)
       .join("\n");
 
-    return `Сгенерируй новое междисциплинарное научное направление на основе выбранных тем.\n\nВыбранные темы: ${topicsText}.\n\nПрофиль пользователя:\n${profileText || "(профиль не заполнен)"}\n\nВажно: не добавляй приветствий, обращений по имени или фраз вроде "Привет, я Miraverse". Сразу дай ответ по структуре.\n\nФормат ответа:\n1) Название направления.\n2) Краткое описание (2-3 предложения).\n3) Ключевые научные вопросы и гипотезы.\n4) Сферы применения и потенциальный эффект.\n5) Необходимые компетенции и инфраструктура.\n6) Какие лаборатории кампуса ближе всего (по смыслу).\n7) Риски, этика и ограничения.\n8) Первые 3 шага для старта проекта.`;
+    return `Сгенерируй новое междисциплинарное научное направление на основе выбранных тем.\n\nВыбранные темы: ${topicsText}.\n\nПрофиль пользователя:\n${profileText || "(профиль не заполнен)"}\n\nВажно: не добавляй приветствий, обращений по имени или фраз вроде "Привет, я Miraverse". Сразу дай ответ по структуре.\n\nФормат ответа:\n1. Название направления.\n2. Краткое описание (2-3 предложения).\n3. Ключевые научные вопросы и гипотезы.\n4. Сферы применения и потенциальный эффект.\n5. Необходимые компетенции и инфраструктура.\n6. Какие лаборатории кампуса ближе всего (по смыслу) — добавь руководителя каждой лаборатории.\n7. Риски, этика и ограничения.\n8. Первые 3 шага для старта проекта.\n9. Какие компании в России могут купить результаты исследования (1–3 крупных компании).`;
   };
 
   const buildSources = () => {
@@ -456,7 +540,8 @@ export default function SciencePage() {
         const spec = lab.attributes?.["Специализация"] || "—";
         const activity = normalizeActivity(lab.activity) || "—";
         const topicsList = (lab.researchTopics || []).join("; ") || "—";
-        return `Лаборатория: ${lab.name}\nСпециализация: ${Array.isArray(spec) ? spec.join(", ") : spec}\nНаправления деятельности: ${activity}\nТематики: ${topicsList}`;
+        const supervisor = lab.supervisor?.trim() || "—";
+        return `Лаборатория: ${lab.name}\nРуководитель лаборатории: ${supervisor}\nСпециализация: ${Array.isArray(spec) ? spec.join(", ") : spec}\nНаправления деятельности: ${activity}\nТематики: ${topicsList}`;
       })
       .join("\n\n");
 
@@ -504,6 +589,14 @@ export default function SciencePage() {
   };
 
   const isTopicActive = (topic: string) => selectedTopics.includes(topic) || hoveredTopic === topic;
+  const hoveredCluster = useMemo(
+    () => (hoveredTopicOrigin ? clusters.find((item) => item.name === hoveredTopicOrigin) : null),
+    [clusters, hoveredTopicOrigin]
+  );
+  const hoveredMeta = useMemo(() => {
+    if (!hoveredTopic || !hoveredCluster) return null;
+    return hoveredCluster.topicMeta?.[hoveredTopic] || null;
+  }, [hoveredCluster, hoveredTopic]);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#05070f]">
@@ -554,13 +647,13 @@ export default function SciencePage() {
                 viewport.width || fallbackMin,
                 viewport.height || fallbackMin
               );
-              const maxOrbit = Math.min(560, Math.max(260, viewportMin * 0.47));
-              const minOrbit = Math.min(180, maxOrbit * 0.45);
+              const maxOrbit = Math.min(540, Math.max(240, viewportMin * 0.46));
+              const minOrbit = Math.min(130, maxOrbit * 0.34);
               const orbitGap =
                 clusters.length > 1 ? (maxOrbit - minOrbit) / (clusters.length - 1) : 0;
               const orbitRadius = minOrbit + orbitGap * index + index * 8;
               const orbitSize = orbitRadius * 2;
-              const orbitDuration = 420;
+              const orbitDuration = 875;
               const customAngle = customOrbitAngles.find((entry) =>
                 cluster.name.startsWith(entry.match)
               )?.angle;
@@ -572,6 +665,9 @@ export default function SciencePage() {
               const isActive = index === safeIndex;
               const clusterTopics = getClusterVisibleTopics(cluster.name, isActive);
               const moonLayout = getMoonLayout(cluster.name, clusterTopics.length);
+              const moonSpinSeed = cluster.name.length + (cluster.name.charCodeAt(0) || 0);
+              const moonSpinDirection = moonSpinSeed % 2 === 0 ? "normal" : "reverse";
+              const moonSpinDuration = 238 + (moonSpinSeed % 6) * 28;
 
               return (
                 <div key={cluster.name}>
@@ -624,20 +720,23 @@ export default function SciencePage() {
                     >
                       <div className="planet-core-wrapper">
                         <div className="planet-core" />
-                        <button
-                          className="planet-label"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            activateCluster(index);
-                          }}
-                        >
-                          {truncate(cluster.name, 26)}
-                        </button>
+                        <div className="planet-label-wrap">
+                          <button
+                            className="planet-label"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              activateCluster(index);
+                            }}
+                          >
+                            {truncate(cluster.name, 26)}
+                          </button>
+                        </div>
                         {clusterTopics.length ? (
                           <div
                             className="moon-orbit"
                             style={{
-                              animationDuration: "160s",
+                              animationDuration: `${moonSpinDuration}s`,
+                              animationDirection: moonSpinDirection,
                             }}
                           >
                             {clusterTopics.map((topic, moonIndex) => {
@@ -645,6 +744,10 @@ export default function SciencePage() {
                                 angle: (360 / clusterTopics.length) * moonIndex,
                                 radius: 42,
                               };
+                              const adjustedRadius = applyMoonRadiusOverrides(
+                                topic,
+                                layout.radius
+                              );
                               const active = isTopicActive(topic);
                               const Icon = getTopicIcon(topic);
                               return (
@@ -657,12 +760,18 @@ export default function SciencePage() {
                                     event.stopPropagation();
                                     toggleTopic(topic, cluster.name);
                                   }}
-                                  onMouseEnter={() => setHoveredTopic(topic)}
-                                  onMouseLeave={() => setHoveredTopic(null)}
+                                  onMouseEnter={() => {
+                                    setHoveredTopic(topic);
+                                    setHoveredTopicOrigin(cluster.name);
+                                  }}
+                                  onMouseLeave={() => {
+                                    setHoveredTopic(null);
+                                    setHoveredTopicOrigin(null);
+                                  }}
                                   className={`moon group ${active ? "moon-active" : ""}`}
                                   style={
                                     {
-                                      transform: `rotate(${layout.angle}deg) translateX(${layout.radius}px)`,
+                                      transform: `rotate(${layout.angle}deg) translateX(${adjustedRadius}px)`,
                                       ["--moon-angle"]: `${layout.angle}deg`,
                                     } as CSSProperties
                                   }
@@ -706,7 +815,7 @@ export default function SciencePage() {
           />
           <button
             onClick={() => setShowProfile((prev) => !prev)}
-            className="w-72 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-white/30"
+            className="w-72 rounded-2xl border border-white/15 bg-[#0b1324]/80 px-4 py-3 text-sm font-semibold text-slate-100 shadow-[0_18px_40px_rgba(5,7,15,0.5)] backdrop-blur-xl transition hover:border-white/35"
           >
             Профиль исследователя
           </button>
@@ -714,14 +823,14 @@ export default function SciencePage() {
       </header>
 
       <section
-        className={`absolute left-1/2 top-28 z-30 w-[min(860px,92vw)] -translate-x-1/2 transition-all duration-300 ${
+        className={`absolute left-1/2 top-28 z-30 w-[min(780px,calc(100vw-22rem))] -translate-x-1/2 -ml-4 transition-all duration-300 ${
           hasSelectedCluster && activeFilteredTopics.length
             ? "opacity-100 translate-y-0"
             : "pointer-events-none -translate-y-2 opacity-0"
         }`}
       >
         {hasSelectedCluster && activeFilteredTopics.length ? (
-          <div className="max-h-[65vh] overflow-y-auto pr-2">
+          <div className="max-h-[72vh] overflow-y-auto pr-2">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {activeFilteredTopics.map((topic) => {
                 const isSelected = selectedTopics.includes(topic);
@@ -732,8 +841,8 @@ export default function SciencePage() {
                     onClick={() => toggleTopic(topic, activeCluster?.name)}
                     className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
                       isSelected
-                        ? "border-cyan-300/90 bg-cyan-300/80 text-white shadow-[0_18px_45px_rgba(34,211,238,0.28)]"
-                        : "border-white/15 bg-[#0b1324]/80 text-slate-100 backdrop-blur-xl shadow-[0_12px_30px_rgba(5,7,15,0.45)] hover:border-white/35"
+                        ? "border-cyan-300/70 bg-cyan-800/100 text-white shadow-[0_10px_24px_rgba(34,211,238,0.25)]"
+                        : "border-white/15 bg-[#0b1324]/100 text-slate-100 backdrop-blur-xl shadow-[0_12px_30px_rgba(5,7,15,0.45)] hover:border-white/35"
                     }`}
                   >
                     <Icon className="topic-icon" aria-hidden />
@@ -761,7 +870,7 @@ export default function SciencePage() {
         <p className="text-xs font-semibold text-slate-200">Специализации</p>
         <div className="mt-3 flex flex-col gap-2">
           {clusters.map((cluster, index) => {
-            const isActive = index === safeIndex;
+            const isActive = hasSelectedCluster && index === safeIndex;
             return (
               <button
                 key={cluster.name}
@@ -787,19 +896,38 @@ export default function SciencePage() {
           })}
         </div>
 
+        {hoveredTopic && hoveredCluster ? (
+          <div className="mt-4 rounded-2xl border border-white/15 bg-[#0b1324]/80 p-3 text-[11px] text-slate-200 shadow-[0_12px_30px_rgba(5,7,15,0.45)] backdrop-blur-xl">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">
+              Тема направления
+            </p>
+            <p className="mt-2 text-sm font-semibold text-white">
+              {truncate(hoveredTopic, 64)}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-400">
+              {hoveredCluster.name}
+            </p>
+            <div className="mt-2 text-[11px] text-slate-300">
+              Лабораторий: {hoveredMeta?.count ?? 0}
+              {hoveredMeta?.labs?.length
+                ? ` • ${hoveredMeta.labs.slice(0, 3).join(", ")}`
+                : ""}
+            </div>
+          </div>
+        ) : null}
+
       </aside>
 
-      <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-200">
-        <span>Направления: {activeFilteredTopics.length}</span>
-        {extraTopicsCount > 0 ? (
+      {extraTopicsCount > 0 ? (
+        <div className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-200">
           <button
             className="text-cyan-200 hover:text-cyan-100"
             onClick={() => setShowAllTopics((prev) => !prev)}
           >
             {showAllTopics ? "Свернуть" : `Показать ещё ${extraTopicsCount}`}
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <div className="fixed bottom-6 right-6 z-40 w-[360px] max-w-[92vw] rounded-3xl border border-white/10 bg-[#0b1324]/90 p-5 text-xs text-slate-200 shadow-[0_0_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
         <div className="flex items-center justify-between">
@@ -816,13 +944,13 @@ export default function SciencePage() {
               <button
                 key={topic}
                 onClick={() => toggleTopic(topic)}
-                className="rounded-full border border-cyan-300/60 bg-cyan-400/10 px-3 py-1 text-[10px] text-white"
+                className="rounded-full border border-cyan-300/60 bg-cyan-400/15 px-3 py-1.5 text-[12px] text-white"
               >
                 {(() => {
                   const Icon = getTopicIcon(topic);
                   return <Icon className="topic-icon" aria-hidden />;
                 })()}
-                {truncate(topic, 55)}
+                {truncate(topic, 34)}
               </button>
             ))
           ) : (
@@ -835,7 +963,7 @@ export default function SciencePage() {
           disabled={!selectedTopics.length || isGenerating}
           className="mt-4 w-full rounded-2xl bg-cyan-400/80 px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-500/30 disabled:text-slate-300"
         >
-          {isGenerating ? "Генерирую направление..." : "Найти новое направление"}
+          {isGenerating ? "Идёт синтез направления..." : "Синтезировать направление"}
         </button>
       </div>
 
