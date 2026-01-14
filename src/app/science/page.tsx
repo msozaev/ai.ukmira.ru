@@ -1,9 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  Atom,
+  BookOpen,
+  Cog,
+  Cpu,
+  FlaskConical,
+  Leaf,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import campusData from "@/data/campusScience.json";
 
 const SOURCE_SITE = "campusufa.ru";
@@ -33,6 +43,8 @@ type Profile = {
   goals: string;
   constraints: string;
 };
+
+type PathSegment = { x1: number; y1: number; x2: number; y2: number };
 
 type ClusterColor = {
   node: string;
@@ -117,6 +129,26 @@ const normalizeSpec = (value: string) => {
   return cleaned;
 };
 
+const normalizeActivity = (value?: string | null) => {
+  if (!value) return "";
+  let cleaned = value.replace(/\s+/g, " ").trim();
+  cleaned = cleaned.replace(/(?:,?\s*(Университет|Специализация))+$/gi, "");
+  cleaned = cleaned.replace(/[,\-–—:;]+$/g, "").trim();
+  return cleaned;
+};
+
+const getTopicIcon = (topic: string) => {
+  const text = topic.toLowerCase();
+  if (/(био|генет|медиц|клин)/.test(text)) return Atom;
+  if (/(хим|катализ|полимер|материал|реакц|нефт|газ)/.test(text)) return FlaskConical;
+  if (/(энерг|энергет|атом|физик|квант)/.test(text)) return Zap;
+  if (/(цифр|данн|ai|ии|программ|софт|кибер|информ)/.test(text)) return Cpu;
+  if (/(эколог|климат|зелен|природ|устойчив)/.test(text)) return Leaf;
+  if (/(инжинир|производ|констр|технол)/.test(text)) return Cog;
+  if (/(гуманит|культур|истор|язык|социолог)/.test(text)) return BookOpen;
+  return Sparkles;
+};
+
 export default function SciencePage() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [hoveredTopic, setHoveredTopic] = useState<string | null>(null);
@@ -127,6 +159,12 @@ export default function SciencePage() {
   const [mounted, setMounted] = useState(false);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [hasSelectedCluster, setHasSelectedCluster] = useState(false);
+  const [selectedTopicOrigins, setSelectedTopicOrigins] = useState<Record<string, string>>({});
+  const [pathSegments, setPathSegments] = useState<PathSegment[]>([]);
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const sunRef = useRef<HTMLDivElement | null>(null);
+  const moonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const planetRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [profile, setProfile] = useState<Profile>({
     name: "",
     background: "",
@@ -174,7 +212,7 @@ export default function SciencePage() {
         ? [specValue]
         : ["Без специализации"];
 
-      const activity = lab.activity?.trim();
+      const activity = normalizeActivity(lab.activity);
 
       specs.forEach((spec) => {
         const name = normalizeSpec(spec);
@@ -273,10 +311,22 @@ export default function SciencePage() {
     return layout;
   };
 
-  const toggleTopic = (topic: string) => {
-    setSelectedTopics((prev) =>
-      prev.includes(topic) ? prev.filter((t) => t !== topic) : [...prev, topic]
-    );
+  const toggleTopic = (topic: string, clusterName?: string) => {
+    setSelectedTopics((prev) => {
+      if (prev.includes(topic)) {
+        setSelectedTopicOrigins((prevMap) => {
+          const next = { ...prevMap };
+          delete next[topic];
+          return next;
+        });
+        return prev.filter((t) => t !== topic);
+      }
+      setSelectedTopicOrigins((prevMap) => ({
+        ...prevMap,
+        [topic]: clusterName || prevMap[topic] || activeCluster?.name || "",
+      }));
+      return [...prev, topic];
+    });
   };
 
   const activateCluster = (index: number) => {
@@ -288,6 +338,87 @@ export default function SciencePage() {
     setActiveClusterIndex(index);
     setHasSelectedCluster(true);
   };
+
+  const selectedClusters = useMemo(() => {
+    const set = new Set<string>();
+    selectedTopics.forEach((topic) => {
+      const cluster = selectedTopicOrigins[topic];
+      if (cluster) set.add(cluster);
+    });
+    return set;
+  }, [selectedTopics, selectedTopicOrigins]);
+
+  const orbitRadiusByName = useMemo(() => {
+    if (!clusters.length) return {};
+    const fallbackMin = Math.min(MAP_WIDTH, MAP_HEIGHT);
+    const viewportMin = Math.min(
+      viewport.width || fallbackMin,
+      viewport.height || fallbackMin
+    );
+    const maxOrbit = Math.min(560, Math.max(260, viewportMin * 0.47));
+    const minOrbit = Math.min(180, maxOrbit * 0.45);
+    const orbitGap =
+      clusters.length > 1 ? (maxOrbit - minOrbit) / (clusters.length - 1) : 0;
+
+    return clusters.reduce<Record<string, number>>((acc, cluster, index) => {
+      acc[cluster.name] = minOrbit + orbitGap * index + index * 8;
+      return acc;
+    }, {});
+  }, [clusters, viewport]);
+
+  useEffect(() => {
+    if (!selectedTopics.length || !mapRef.current || !sunRef.current) {
+      setPathSegments([]);
+      return;
+    }
+
+    const computePath = () => {
+      if (!mapRef.current || !sunRef.current) return;
+      const mapRect = mapRef.current.getBoundingClientRect();
+      const sunRect = sunRef.current.getBoundingClientRect();
+      const sunPoint = {
+        x: sunRect.left + sunRect.width / 2 - mapRect.left,
+        y: sunRect.top + sunRect.height / 2 - mapRect.top,
+      };
+
+      const points = selectedTopics
+        .map((topic) => {
+          const node = moonRefs.current[topic];
+          if (!node) return null;
+          const rect = node.getBoundingClientRect();
+          const clusterName = selectedTopicOrigins[topic];
+          const orbitRadius = clusterName ? orbitRadiusByName[clusterName] || 0 : 0;
+          return {
+            x: rect.left + rect.width / 2 - mapRect.left,
+            y: rect.top + rect.height / 2 - mapRect.top,
+            orbitRadius,
+          };
+        })
+        .filter(Boolean) as Array<{ x: number; y: number; orbitRadius: number }>;
+
+      if (!points.length) {
+        setPathSegments([]);
+        return;
+      }
+
+      points.sort((a, b) => b.orbitRadius - a.orbitRadius);
+      const segments: PathSegment[] = [];
+      for (let i = 0; i < points.length - 1; i += 1) {
+        segments.push({
+          x1: points[i].x,
+          y1: points[i].y,
+          x2: points[i + 1].x,
+          y2: points[i + 1].y,
+        });
+      }
+      setPathSegments(segments);
+
+    };
+
+    computePath();
+    const interval = window.setInterval(computePath, 180);
+    return () => window.clearInterval(interval);
+  }, [selectedTopics, selectedTopicOrigins, orbitRadiusByName]);
 
   const handleProfileChange = (key: keyof Profile, value: string) => {
     setProfile((prev) => ({ ...prev, [key]: value }));
@@ -323,7 +454,7 @@ export default function SciencePage() {
     const content = snippets
       .map((lab) => {
         const spec = lab.attributes?.["Специализация"] || "—";
-        const activity = lab.activity?.trim() || "—";
+        const activity = normalizeActivity(lab.activity) || "—";
         const topicsList = (lab.researchTopics || []).join("; ") || "—";
         return `Лаборатория: ${lab.name}\nСпециализация: ${Array.isArray(spec) ? spec.join(", ") : spec}\nНаправления деятельности: ${activity}\nТематики: ${topicsList}`;
       })
@@ -376,7 +507,7 @@ export default function SciencePage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#05070f]">
-      <div className="absolute inset-0">
+      <div className="absolute inset-0" ref={mapRef}>
         {!mounted ? (
           <div className="flex h-full items-center justify-center text-sm text-slate-300">
             Загружаем карту…
@@ -390,8 +521,28 @@ export default function SciencePage() {
             <div className="absolute right-10 top-20 h-72 w-72 rounded-full bg-gradient-to-br from-violet-400/30 via-transparent to-transparent blur-3xl" />
             <div className="absolute bottom-10 left-1/3 h-80 w-80 rounded-full bg-gradient-to-br from-emerald-400/20 via-transparent to-transparent blur-3xl" />
 
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              viewBox={`0 0 ${viewport.width || MAP_WIDTH} ${viewport.height || MAP_HEIGHT}`}
+              preserveAspectRatio="none"
+            >
+              {pathSegments.map((segment, index) => (
+                <line
+                  key={`${segment.x1}-${segment.y1}-${segment.x2}-${segment.y2}-${index}`}
+                  x1={segment.x1}
+                  y1={segment.y1}
+                  x2={segment.x2}
+                  y2={segment.y2}
+                  stroke="rgba(255, 255, 255, 0.35)"
+                  strokeWidth="1.2"
+                  strokeDasharray="6 8"
+                  strokeLinecap="round"
+                />
+              ))}
+            </svg>
+
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-              <div className="sun">
+              <div className="sun" ref={sunRef}>
                 <span className="sun-label">Miraverse</span>
                 <span className="sun-glow" />
               </div>
@@ -449,6 +600,9 @@ export default function SciencePage() {
                       role="button"
                       tabIndex={0}
                       aria-pressed={isActive}
+                      ref={(node) => {
+                        planetRefs.current[cluster.name] = node;
+                      }}
                       onClick={() => {
                         activateCluster(index);
                       }}
@@ -458,7 +612,9 @@ export default function SciencePage() {
                           activateCluster(index);
                         }
                       }}
-                      className={`planet ${isActive ? "planet-active" : ""}`}
+                      className={`planet ${isActive ? "planet-active" : ""} ${
+                        selectedClusters.has(cluster.name) ? "planet-selected" : ""
+                      }`}
                       style={
                         {
                           transform: `translate(-50%, -50%) translateX(${orbitRadius}px)`,
@@ -490,12 +646,16 @@ export default function SciencePage() {
                                 radius: 42,
                               };
                               const active = isTopicActive(topic);
+                              const Icon = getTopicIcon(topic);
                               return (
                                 <button
                                   key={topic}
+                                  ref={(node) => {
+                                    moonRefs.current[topic] = node;
+                                  }}
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    toggleTopic(topic);
+                                    toggleTopic(topic, cluster.name);
                                   }}
                                   onMouseEnter={() => setHoveredTopic(topic)}
                                   onMouseLeave={() => setHoveredTopic(null)}
@@ -508,7 +668,9 @@ export default function SciencePage() {
                                   }
                                   aria-label={topic}
                                 >
-                                  <span className="moon-dot" />
+                                  <span className="moon-dot">
+                                    <Icon className="moon-icon" aria-hidden />
+                                  </span>
                                 </button>
                               );
                             })}
@@ -525,6 +687,9 @@ export default function SciencePage() {
       </div>
 
       <header className="absolute left-6 right-6 top-6 z-30 flex flex-wrap items-center gap-4">
+        <Link href="/" className="text-sm font-semibold text-slate-300 hover:text-white">
+          {"←"} Назад
+        </Link>
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Miraverse</p>
           <h1 className="text-2xl font-semibold text-white sm:text-3xl">Наука</h1>
@@ -532,18 +697,18 @@ export default function SciencePage() {
             Лабораторная вселенная для поиска будущих исследований.
           </p>
         </div>
-        <div className="ml-auto flex flex-wrap gap-2">
+        <div className="ml-auto flex flex-col items-end gap-2">
           <input
-            className="w-56 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-white"
+            className="w-72 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-white"
             placeholder="Поиск направления"
             value={topicSearch}
             onChange={(e) => setTopicSearch(e.target.value)}
           />
           <button
             onClick={() => setShowProfile((prev) => !prev)}
-            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-200 transition hover:border-white/30"
+            className="w-72 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-white/30"
           >
-            Профиль
+            Профиль исследователя
           </button>
         </div>
       </header>
@@ -560,16 +725,18 @@ export default function SciencePage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {activeFilteredTopics.map((topic) => {
                 const isSelected = selectedTopics.includes(topic);
+                const Icon = getTopicIcon(topic);
                 return (
                   <button
                     key={topic}
-                    onClick={() => toggleTopic(topic)}
+                    onClick={() => toggleTopic(topic, activeCluster?.name)}
                     className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
                       isSelected
                         ? "border-cyan-300/90 bg-cyan-300/80 text-white shadow-[0_18px_45px_rgba(34,211,238,0.28)]"
                         : "border-white/15 bg-[#0b1324]/80 text-slate-100 backdrop-blur-xl shadow-[0_12px_30px_rgba(5,7,15,0.45)] hover:border-white/35"
                     }`}
                   >
+                    <Icon className="topic-icon" aria-hidden />
                     {topic}
                   </button>
                 );
@@ -590,8 +757,8 @@ export default function SciencePage() {
         ) : null}
       </section>
 
-      <aside className="absolute left-6 top-28 z-30 w-64 rounded-3xl border border-white/10 bg-white/5 p-4 text-xs text-slate-200">
-        <p className="text-xs font-semibold text-slate-300">Специализации</p>
+      <aside className="absolute left-6 top-28 z-30 w-64 rounded-3xl border border-white/15 bg-[#0b1324]/80 p-4 text-xs text-slate-100 shadow-[0_18px_40px_rgba(5,7,15,0.5)] backdrop-blur-xl">
+        <p className="text-xs font-semibold text-slate-200">Специализации</p>
         <div className="mt-3 flex flex-col gap-2">
           {clusters.map((cluster, index) => {
             const isActive = index === safeIndex;
@@ -601,15 +768,22 @@ export default function SciencePage() {
                 onClick={() => {
                   activateCluster(index);
                 }}
-                className={`rounded-2xl border px-3 py-2 text-left text-xs transition ${
+                className={`flex min-h-[44px] items-center justify-between rounded-2xl border px-3 py-2 text-left text-[11px] leading-snug transition ${
                   isActive
-                    ? "border-cyan-300/70 bg-cyan-400/20 text-white"
-                    : "border-white/10 bg-white/5 text-slate-200 hover:border-white/30"
+                    ? "border-cyan-300/70 bg-cyan-400/25 text-white shadow-[0_10px_24px_rgba(34,211,238,0.25)]"
+                    : "border-white/15 bg-[#0b1324]/70 text-slate-200 hover:border-white/35"
                 }`}
               >
-                {truncate(cluster.name, 42)}
+                <span className="line-clamp-2">{cluster.name}</span>
+                <span
+                  className={`ml-2 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] ${
+                    isActive ? "border-cyan-300/70 text-cyan-100" : "border-white/20 text-slate-300"
+                  }`}
+                >
+                  {cluster.topics.length}
+                </span>
               </button>
-              );
+            );
           })}
         </div>
 
@@ -644,6 +818,10 @@ export default function SciencePage() {
                 onClick={() => toggleTopic(topic)}
                 className="rounded-full border border-cyan-300/60 bg-cyan-400/10 px-3 py-1 text-[10px] text-white"
               >
+                {(() => {
+                  const Icon = getTopicIcon(topic);
+                  return <Icon className="topic-icon" aria-hidden />;
+                })()}
                 {truncate(topic, 55)}
               </button>
             ))
@@ -693,8 +871,8 @@ export default function SciencePage() {
       ) : null}
 
       <div
-        className={`fixed right-6 top-24 z-40 w-[360px] max-w-[92vw] rounded-3xl border border-white/10 bg-[#0b1324]/95 p-5 text-xs text-slate-200 shadow-[0_0_40px_rgba(0,0,0,0.45)] backdrop-blur-xl transition ${
-          showProfile ? "opacity-100" : "pointer-events-none translate-y-2 opacity-0"
+        className={`fixed left-1/2 top-1/2 z-50 w-[min(620px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/10 bg-[#0b1324]/95 p-5 text-xs text-slate-200 shadow-[0_30px_80px_rgba(5,7,15,0.55)] backdrop-blur-xl transition ${
+          showProfile ? "opacity-100 scale-100" : "pointer-events-none scale-95 opacity-0"
         }`}
       >
         <div className="flex items-center justify-between">

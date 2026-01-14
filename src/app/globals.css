@@ -377,6 +377,39 @@ body {
   filter: drop-shadow(0 0 36px var(--planet-color, rgba(56, 189, 248, 0.7)));
 }
 
+.planet-selected .planet-core {
+  filter: drop-shadow(0 0 34px var(--planet-color, rgba(56, 189, 248, 0.85)));
+}
+
+.planet-selected .planet-core-wrapper::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0) 70%
+  );
+  box-shadow: 0 0 20px var(--planet-color, rgba(56, 189, 248, 0.7));
+  opacity: 0.85;
+  animation: planetPulse 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes planetPulse {
+  0%,
+  100% {
+    transform: scale(0.98);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
 .planet-active .planet-label {
   border-color: rgba(56, 189, 248, 0.4);
   color: rgba(255, 255, 255, 0.98);
@@ -410,20 +443,39 @@ body {
 
 .moon-dot {
   display: block;
-  width: 12px;
-  height: 12px;
+  width: 20px;
+  height: 20px;
   border-radius: 9999px;
   border: 1px solid var(--planet-color, rgba(148, 163, 184, 0.6));
   background: rgba(255, 255, 255, 0.12);
   box-shadow: 0 0 14px var(--planet-color, rgba(148, 163, 184, 0.35));
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .moon-active .moon-dot {
-  width: 15px;
-  height: 15px;
+  width: 24px;
+  height: 24px;
   border-color: var(--planet-color, rgba(34, 211, 238, 0.9));
   background: var(--planet-color, rgba(34, 211, 238, 0.6));
   box-shadow: 0 0 22px var(--planet-color, rgba(34, 211, 238, 0.9));
+}
+
+.topic-icon {
+  margin-right: 6px;
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  vertical-align: -3px;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.moon-icon {
+  width: 14px;
+  height: 14px;
+  color: rgba(226, 232, 240, 0.9);
 }
 
 .moon-active .moon-dot::after {
