@@ -291,6 +291,14 @@ export default function SciencePage() {
     return filterTopics(activeCluster.topics);
   }, [activeCluster, topicSearch]);
 
+  const allTopics = useMemo(() => {
+    const set = new Set<string>();
+    clusters.forEach((cluster) => {
+      cluster.topics.forEach((topic) => set.add(topic));
+    });
+    return Array.from(set).sort();
+  }, [clusters]);
+
   const activeVisibleTopics = useMemo(() => {
     if (!activeCluster) return [];
     return activeFilteredTopics;
@@ -526,10 +534,28 @@ export default function SciencePage() {
     return `Сгенерируй новое междисциплинарное научное направление на основе выбранных тем.\n\nВыбранные темы: ${topicsText}.\n\nПрофиль пользователя:\n${profileText || "(профиль не заполнен)"}\n\nВажно: не добавляй приветствий, обращений по имени или фраз вроде "Привет, я Miraverse". Сразу дай ответ по структуре.\n\nФормат ответа:\n1. Название направления.\n2. Краткое описание (2-3 предложения).\n3. Ключевые научные вопросы и гипотезы.\n4. Сферы применения и потенциальный эффект.\n5. Необходимые компетенции и инфраструктура.\n6. Какие лаборатории кампуса ближе всего (по смыслу) — добавь руководителя каждой лаборатории.\n7. Риски, этика и ограничения.\n8. Первые 3 шага для старта проекта.\n9. Какие компании в России могут купить результаты исследования (1–3 крупных компании).`;
   };
 
-  const buildSources = () => {
-    const selectedLabs = selectedTopics.length
-      ? labs.filter((lab) => selectedTopics.includes(lab.activity?.trim() || ""))
-      : activeCluster?.labs || [];
+  const buildProfilePrompt = () => {
+    const profileText = [
+      profile.name ? `Имя: ${profile.name}` : null,
+      profile.background ? `Бэкграунд: ${profile.background}` : null,
+      profile.skills ? `Навыки: ${profile.skills}` : null,
+      profile.goals ? `Цели: ${profile.goals}` : null,
+      profile.constraints ? `Ограничения: ${profile.constraints}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const topicsCatalog = allTopics.length ? allTopics.join("; ") : "(темы отсутствуют)";
+
+    return `На основе профиля пользователя подбери 3–5 наиболее подходящих тем из списка тем кампуса ниже и сгенерируй новое междисциплинарное научное направление. Не выводи весь список тем. Кратко перечисли выбранные темы внутри пункта 1 или 2.\n\nПрофиль пользователя:\n${profileText || "(профиль не заполнен)"}\n\nТемы кампуса:\n${topicsCatalog}\n\nВажно: не добавляй приветствий, обращений по имени или фраз вроде "Привет, я Miraverse". Сразу дай ответ по структуре.\n\nФормат ответа:\n1. Название направления.\n2. Краткое описание (2-3 предложения).\n3. Ключевые научные вопросы и гипотезы.\n4. Сферы применения и потенциальный эффект.\n5. Необходимые компетенции и инфраструктура.\n6. Какие лаборатории кампуса ближе всего (по смыслу) — добавь руководителя каждой лаборатории.\n7. Риски, этика и ограничения.\n8. Первые 3 шага для старта проекта.\n9. Какие компании в России могут купить результаты исследования (1–3 крупных компании).`;
+  };
+
+  const buildSources = (labOverride?: Lab[]) => {
+    const selectedLabs =
+      labOverride ??
+      (selectedTopics.length
+        ? labs.filter((lab) => selectedTopics.includes(lab.activity?.trim() || ""))
+        : activeCluster?.labs || []);
 
     const snippets = selectedLabs.length
       ? selectedLabs
@@ -569,6 +595,40 @@ export default function SciencePage() {
           mode: "chat",
           prompt: buildPrompt(),
           sources: buildSources(),
+        }),
+      });
+
+      const payload = (await res.json()) as { text?: string; error?: string };
+      if (!res.ok || payload.error) {
+        throw new Error(payload.error || "Не удалось сгенерировать направление");
+      }
+
+      setGenerated(payload.text || "Ответ не получен");
+      setShowResult(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Ошибка генерации";
+      setError(message);
+      setShowResult(true);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleProfileGenerate = async () => {
+    setIsGenerating(true);
+    setError("");
+    setGenerated("");
+    setShowResult(false);
+    setShowProfile(false);
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "chat",
+          prompt: buildProfilePrompt(),
+          sources: buildSources(labs),
         }),
       });
 
@@ -1058,6 +1118,21 @@ export default function SciencePage() {
               placeholder="Бюджет, сроки, доступная инфраструктура"
             />
           </label>
+        </div>
+        <div className="mt-5 flex flex-col gap-2">
+          <button
+            onClick={() => setShowProfile(false)}
+            className="w-full rounded-2xl border border-white/15 bg-[#0b1324]/80 px-4 py-3 text-sm font-semibold text-slate-100 shadow-[0_18px_40px_rgba(5,7,15,0.5)] backdrop-blur-xl transition hover:border-white/35"
+          >
+            Сохранить и выйти
+          </button>
+          <button
+            onClick={handleProfileGenerate}
+            disabled={isGenerating}
+            className="w-full rounded-2xl bg-cyan-400/80 px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-500/30 disabled:text-slate-300"
+          >
+            {isGenerating ? "Идёт синтез направления..." : "Найди новое направление"}
+          </button>
         </div>
       </div>
     </main>
